@@ -86,7 +86,7 @@
 
       async function fetchFilterOptions() {
         try {
-          const res = await authFetch('/api/domains/filter-options');
+          const res = await authFetch('/api/dns-domains/filter-options');
           const json = await res.json();
           if (json.code === 0) {
             platformList.value = (json.data.platforms || []).sort();

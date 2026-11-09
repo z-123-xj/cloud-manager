@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const { ref, reactive, computed, onMounted } = CloudCore.Vue;
+  const { ref, reactive, computed, onMounted, nextTick } = CloudCore.Vue;
   const { authFetch, showToast, logout, formatDate } = CloudCore;
 
   const PLATFORM_LABELS = {
@@ -99,7 +99,7 @@
 
       async function fetchFilterOptions() {
         try {
-          const res = await authFetch('/api/domains/filter-options');
+          const res = await authFetch('/api/ecs/filter-options');
           const json = await res.json();
           if (json.code === 0) {
             platformList.value = (json.data.platforms || []).sort();
@@ -207,6 +207,72 @@
         } catch (e) { showToast('请求失败', 'error'); } finally { ecsManualSaving.value = false; }
       }
 
+      // 双击单元格修改实例名称 / SSH 端口：实例名称会同步到云端，SSH 端口仅维护本地库；
+      // 两个接口都要求管理员，故这里先用 cloud_role 兜底判断。
+      const ecsInlineEdit = ref({ id: null, field: '' });
+      const ecsInlineValue = ref('');
+      const ecsInlineSaving = ref(false);
+
+      function startEcsInlineEdit(item, field) {
+        if (localStorage.getItem('cloud_role') !== 'admin' || ecsInlineSaving.value) return;
+        ecsInlineEdit.value = { id: item.id, field: field };
+        ecsInlineValue.value = field === 'ssh_port'
+          ? String(item.ssh_port || 22)
+          : (item.instance_name || '');
+        nextTick(() => {
+          const el = document.querySelector('.ecs-inline-input');
+          if (el) { el.focus(); try { el.select(); } catch (e) { /* ignore */ } }
+        });
+      }
+
+      function cancelEcsInlineEdit() {
+        ecsInlineEdit.value = { id: null, field: '' };
+        ecsInlineValue.value = '';
+      }
+
+      async function saveEcsInlineEdit(item) {
+        if (ecsInlineSaving.value) return;
+        const edit = ecsInlineEdit.value;
+        if (!edit.id || edit.id !== item.id) return;
+
+        const field = edit.field;
+        let value;
+        if (field === 'ssh_port') {
+          value = parseInt(ecsInlineValue.value, 10);
+          if (isNaN(value) || value < 1 || value > 65535) { cancelEcsInlineEdit(); return; }
+          if (value === (item.ssh_port || 22)) { cancelEcsInlineEdit(); return; }
+        } else {
+          value = (ecsInlineValue.value || '').trim();
+          if (!value || value === item.instance_name) { cancelEcsInlineEdit(); return; }
+        }
+
+        ecsInlineSaving.value = true;
+        try {
+          const url = field === 'ssh_port'
+            ? '/api/ecs/' + item.id + '/ssh-port'
+            : '/api/ecs/' + item.id + '/name';
+          const body = field === 'ssh_port' ? { ssh_port: value } : { instance_name: value };
+          const res = await authFetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const json = await res.json();
+          if (json.code === 401) { logout(); return; }
+          if (json.code === 0) {
+            if (field === 'ssh_port') item.ssh_port = value;
+            else item.instance_name = value;
+            showToast('已保存');
+          } else {
+            showToast(json.msg || '保存失败', 'error');
+          }
+        } catch (e) { showToast('保存失败', 'error'); }
+        finally {
+          ecsInlineSaving.value = false;
+          cancelEcsInlineEdit();
+        }
+      }
+
       onMounted(() => { fetchFilterOptions(); fetchList(); });
 
       return {
@@ -216,6 +282,7 @@
         goPage, jumpPage, onSizeChange, openSync, onKeywordInput,
         ecsManualModalVisible, ecsManualEditing, ecsManualSaving, ecsManualForm,
         openEcsManualModal, saveEcsManual,
+        ecsInlineEdit, ecsInlineValue, startEcsInlineEdit, saveEcsInlineEdit, cancelEcsInlineEdit,
       };
     },
   });

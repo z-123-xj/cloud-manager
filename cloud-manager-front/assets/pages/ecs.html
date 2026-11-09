@@ -7,7 +7,7 @@
   <title>ECS实例 - 云管平台</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
   <script src="/assets/js/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109n" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -87,8 +87,13 @@
                   <tr v-else-if="list.length === 0"><td colspan="15" class="text-center py-40 text-gray">暂无数据</td></tr>
                 <tr v-for="item in list" :key="item.instance_id">
                   <td>
-                    <div class="domain-name">{{ item.instance_name || item.instance_id }}</div>
-                    <div class="domain-remark text-mono">{{ item.instance_id }}</div>
+                    <div v-if="ecsInlineEdit.id === item.id && ecsInlineEdit.field === 'name'">
+                      <input class="input input-full ecs-inline-input" v-model="ecsInlineValue" @keyup.enter="saveEcsInlineEdit(item)" @keyup.esc="cancelEcsInlineEdit" @blur="saveEcsInlineEdit(item)" />
+                    </div>
+                    <div v-else :class="{ 'ecs-cell-editable': isAdmin }" :title="isAdmin ? '双击修改实例名称（主机名）' : ''" @dblclick="startEcsInlineEdit(item, 'name')">
+                      <div class="domain-name">{{ item.instance_name || item.instance_id }}</div>
+                      <div class="domain-remark text-mono">{{ item.instance_id }}</div>
+                    </div>
                   </td>
                   <td><span class="tag tag-platform">{{ platformLabel(item.platform) }}</span></td>
                   <td>{{ item.account_name }}</td>
@@ -107,7 +112,12 @@
                       <div v-if="item.private_ip_address" class="ip-line"><span class="text-mono">{{ item.private_ip_address }}</span><span class="ip-tag ip-tag-private">私网</span></div>
                     </div>
                   </td>
-                  <td class="text-mono">{{ item.ssh_port || 22 }}</td>
+                  <td class="text-mono">
+                    <span v-if="ecsInlineEdit.id === item.id && ecsInlineEdit.field === 'ssh_port'">
+                      <input type="number" min="1" max="65535" class="input ecs-inline-input" style="width:100%;display:inline-block" v-model="ecsInlineValue" @keyup.enter="saveEcsInlineEdit(item)" @keyup.esc="cancelEcsInlineEdit" @blur="saveEcsInlineEdit(item)" />
+                    </span>
+                    <span v-else :class="{ 'ecs-cell-editable': isAdmin }" :title="isAdmin ? '双击修改SSH端口' : ''" @dblclick="startEcsInlineEdit(item, 'ssh_port')">{{ item.ssh_port || 22 }}</span>
+                  </td>
                   <td class="text-sm">{{ item.region_name || '-' }}</td>
                   <td class="text-sm">{{ item.zone_name || item.availability_zone || '-' }}</td>
                   <td class="text-sm">{{ formatDate(item.creation_time) }}</td>
@@ -174,7 +184,7 @@
   </script>
 
   <script src="/assets/js/core.js?v=20261109f"></script>
-  <script src="/assets/js/shared-sync.js?v=20261108i"></script>
-  <script src="/assets/js/pages/ecs.js?v=20261108i"></script>
+  <script src="/assets/js/shared-sync.js?v=20261109l"></script>
+  <script src="/assets/js/pages/ecs.js?v=20261109m"></script>
 </body>
 </html>

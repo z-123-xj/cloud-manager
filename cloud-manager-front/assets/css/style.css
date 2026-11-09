@@ -3352,7 +3352,7 @@ body {
 .cdn-drawer.nav-dir {
   display: flex !important; flex-direction: column;
   position: sticky !important; top: 12px !important; left: auto !important; bottom: auto !important;
-  width: 240px !important; min-width: 240px !important; max-width: 240px !important;
+  width: 280px !important; min-width: 280px !important; max-width: 280px !important;
   max-height: calc(100vh - 120px) !important;
   margin: 0 !important; padding: 0 !important;
   border: 1px solid #e8e8e8 !important;
@@ -3360,6 +3360,7 @@ body {
   background: #fff !important;
   box-shadow: none !important;
   overflow-y: auto !important;
+  overflow-x: hidden !important;
   transform: none !important;
   z-index: auto !important;
   scrollbar-width: thin; scrollbar-color: #dcdfe6 transparent;
@@ -3406,6 +3407,8 @@ body {
 .cdn-drawer.nav-dir .cdn-drawer-item,
 .cdn-drawer.nav-dir .cdn-drawer-group {
   position: relative; display: flex !important; align-items: center;
+  /* 基础规则的 width:100% 叠加左右 12px margin 会横向溢出，撑出底部水平滚动条 */
+  width: auto !important;
   padding: 10px 12px !important; margin: 0 12px 2px !important;
   border: 0 !important; border-radius: 6px !important;
   font-size: 13px !important; color: #4b5563 !important;
@@ -3546,7 +3549,7 @@ body {
    ================================================================== */
 .page-root .main-content:has(.cdn-drawer.nav-dir) {
   max-width: none !important;          /* 有了固定栏就不再居中收窄 */
-  padding-left: 272px !important;      /* 240px 固定栏 + 32px 间距 */
+  padding-left: 312px !important;      /* 280px 固定栏 + 32px 间距 */
 }
 /* 页面根 / 布局链占满高度，表格内部滚动、表头 sticky 才生效 */
 .page-root .dns-page,
@@ -3580,7 +3583,7 @@ body {
 .page-root .cdn-drawer.nav-dir {
   position: fixed !important;
   top: 60px !important; bottom: 0 !important; left: 0 !important;
-  width: 240px !important; min-width: 240px !important; max-width: 240px !important;
+  width: 280px !important; min-width: 280px !important; max-width: 280px !important;
   max-height: none !important; height: auto !important;
   margin: 0 !important; padding: 0 !important;
   border: 0 !important; border-right: 1px solid #ebeef5 !important;
@@ -3588,12 +3591,13 @@ body {
   box-shadow: none !important;
   background: #fff !important;
   overflow-y: auto !important;
+  overflow-x: hidden !important;
   z-index: 40 !important;
 }
 @media (max-width: 1180px) {
-  .page-root .main-content:has(.cdn-drawer.nav-dir) { padding-left: 232px !important; }
+  .page-root .main-content:has(.cdn-drawer.nav-dir) { padding-left: 272px !important; }
   .page-root .cdn-drawer.nav-dir {
-    width: 200px !important; min-width: 200px !important; max-width: 200px !important;
+    width: 240px !important; min-width: 240px !important; max-width: 240px !important;
   }
 }
 
@@ -3708,7 +3712,7 @@ body {
   max-width: 2160px !important;
   margin-left: auto !important;
   margin-right: auto !important;
-  padding-left: 272px !important;
+  padding-left: 312px !important;
   padding-right: 32px !important;
 }
 /* 1840px 按最宽的 ECS / 堡垒机表（约 1780px）+ 内边距 48px 设定；
@@ -3747,7 +3751,7 @@ body {
 .nav-dir-collapse-btn:hover { background: #f3f4f6; color: #1e5fa8; }
 
 .nav-dir-expand-btn {
-  position: fixed; left: 12px; top: 72px; z-index: 45;
+  position: fixed; left: 12px; top: 140px; z-index: 45;
   display: none; align-items: center; gap: 6px;
   padding: 8px 12px;
   border: 1px solid #e5e7eb; border-radius: 8px;
@@ -3756,6 +3760,13 @@ body {
 }
 .nav-dir-expand-btn:hover { color: #1e5fa8; border-color: #1e5fa8; }
 html.nav-dir-collapsed .nav-dir-expand-btn { display: inline-flex; }
+
+/* 侧栏收起后主内容左内边距缩到 32px，页眉按钮会移到窗口左上角；
+   把它抬到浮动「展开账号目录」按钮之上，避免被盖住点不到 */
+.page-root .main-content .page-header .sync-btn-group {
+  position: relative;
+  z-index: 60;
+}
 
 html.nav-dir-collapsed .page-root .cdn-drawer.nav-dir {
   transform: translateX(-100%) !important;
