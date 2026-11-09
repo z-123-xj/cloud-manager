@@ -1,0 +1,9 @@
+# AI 会话记忆（本地开发上下文，不属于项目源码）
+.codebuddy/
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

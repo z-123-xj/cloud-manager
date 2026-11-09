@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>堡垒机资产 - 云管平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
+  <script src="/assets/js/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    /* SSH 连接弹窗：内容对齐 terminal.html 的连接弹窗，外观沿用堡垒机亮色卡片 */
+    .bastion-connect-modal .conn-subline {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: #64748b;
+      padding: 10px 15px; margin-bottom: 20px;
+      background: rgba(59, 130, 246, .06);
+      border-left: 3px solid #3b82f6;
+      border-radius: 0 8px 8px 0;
+    }
+    .bastion-connect-modal .conn-subline .sub-badge {
+      display: inline-block; background: rgba(59, 130, 246, .15); color: #1d4ed8;
+      font-size: 12px; font-weight: 500; padding: 2px 12px; border-radius: 20px;
+    }
+    .bastion-connect-modal .bastion-ip-card input[type=radio] {
+      -webkit-appearance: none; appearance: none;
+      width: 18px; height: 18px; margin: 0; flex-shrink: 0;
+      border: 2px solid #cbd5e1; border-radius: 50%; background: #fff; cursor: pointer;
+    }
+    .bastion-connect-modal .bastion-ip-card input[type=radio]:checked {
+      border-color: #2563eb; background: radial-gradient(circle, #2563eb 0 45%, transparent 46%);
+    }
+    .bastion-connect-modal .bastion-ip-card.active input[type=radio] { border-color: #2563eb; }
+    .bastion-connect-modal .conn-port { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="text/x-template" id="page-template">
+    <div class="bastion-page">
+      <div class="page-header">
+        <h2>堡垒机资产</h2>
+        <div class="sync-btn-group">
+          <span class="text-gray text-sm">共 {{ filteredList.length }} 台资产</span>
+          <button class="btn btn-default btn-sm" @click="fetchAssets">
+            <i class="fas fa-rotate-right"></i> 刷新
+          </button>
+        </div>
+      </div>
+
+      <div class="cdn-layout">
+        <aside class="cdn-drawer nav-dir">
+          <div class="nav-dir-head"><span class="nav-dir-title">选择账号</span></div>
+          <div class="nav-dir-search">
+            <i class="fas fa-search"></i>
+            <input type="text" class="nav-dir-search-input" v-model="navDirKeyword" placeholder="输入平台或账号实时筛选" autocomplete="off" />
+            <button v-if="navDirKeyword" class="nav-dir-search-clear" type="button" title="清空" @click.stop="navDirKeyword = ''">✕</button>
+          </div>
+          <div class="cdn-drawer-title">筛选</div>
+          <button class="cdn-drawer-item" :class="{ active: !filters.platform && !filters.account }" @click="selectFilter('', '')">全部资产</button>
+          <template v-for="pf in filteredPlatforms" :key="pf">
+            <div class="cdn-drawer-group" :class="{ active: filters.platform === pf && !filters.account }" @click="selectFilter(pf, '')">{{ platformLabel(pf) }}</div>
+            <button v-for="acc in accountsOfPlatform(pf)" :key="pf + '-' + acc" class="cdn-drawer-item sub-2" :class="{ active: filters.account === acc }" @click="selectFilter(pf, acc)" :title="acc">{{ acc }}</button>
+          </template>
+        </aside>
+
+        <div class="cdn-main">
+          <!-- 3.html 款：筛选栏 + 表格合成一张毛玻璃大圆角卡片 -->
+          <div class="srv-card">
+          <div class="filter-bar">
+            <div class="filter-row">
+              <input type="text" class="input" placeholder="搜索实例名 / ID / IP..." v-model="filters.keyword" @keyup.enter="noop" />
+              <select class="select" v-model="filters.region">
+                <option value="">全部地域</option>
+                <option v-for="r in regions" :key="r" :value="r">{{ r }}</option>
+              </select>
+              <button class="btn btn-default" @click="resetFilters">重置</button>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="table table-fixed bastion-asset-table">
+              <thead>
+                <tr>
+                  <th>实例ID/名称</th>
+                  <th>平台</th>
+                  <th>账号</th>
+                  <th>状态</th>
+                  <th>规格</th>
+                  <th>CPU</th>
+                  <th>内存(GB)</th>
+                  <th>操作系统</th>
+                  <th>IP地址</th>
+                  <th>SSH端口</th>
+                  <th>地域</th>
+                  <th>可用区</th>
+                  <th>创建时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="loading"><td colspan="14" class="text-center py-40">加载中...</td></tr>
+                <tr v-else-if="filteredList.length === 0"><td colspan="14" class="text-center py-40 text-gray">暂无已授权资产</td></tr>
+                <tr v-for="a in pagedList" :key="a.instance_id">
+                  <td>
+                    <div class="domain-name">{{ a.instance_name || a.instance_id }}</div>
+                    <div class="domain-remark text-mono">{{ a.instance_id }}</div>
+                  </td>
+                  <td><span class="tag tag-platform">{{ platformLabel(a.platform) }}</span></td>
+                  <td>{{ a.account_name }}</td>
+                  <td>
+                    <span v-if="a.is_offline === 1"><span class="dot dot-offline"></span><span class="text-gray">已下线</span></span>
+                    <span v-else><span class="dot" :class="dotClass(a.status)"></span>{{ statusLabel(a.status) }}</span>
+                  </td>
+                  <td>{{ a.instance_type || '-' }}</td>
+                  <td>{{ a.cpu }}</td>
+                  <td>{{ a.memory }}</td>
+                  <td class="text-sm">{{ a.os_name || '-' }}</td>
+                  <td>
+                    <div class="ip-list">
+                      <div v-if="a.public_ip_address" class="ip-line"><span class="text-mono">{{ a.public_ip_address }}</span><span class="ip-tag ip-tag-public">公网</span></div>
+                      <div v-if="a.eip_address" class="ip-line"><span class="text-mono">{{ a.eip_address }}</span><span class="ip-tag ip-tag-eip">弹性</span></div>
+                      <div v-if="a.private_ip_address" class="ip-line"><span class="text-mono">{{ a.private_ip_address }}</span><span class="ip-tag ip-tag-private">私网</span></div>
+                    </div>
+                  </td>
+                  <td class="text-mono">{{ a.ssh_port || 22 }}</td>
+                  <td class="text-sm">{{ a.region_name || '-' }}</td>
+                  <td class="text-sm">{{ a.zone_name || a.availability_zone || '-' }}</td>
+                  <td class="text-sm">{{ formatDate(a.creation_time) }}</td>
+                  <td><button class="btn btn-text btn-sm" @click="connect(a)">连接</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pagination">
+            <span class="page-info">共 {{ total }} 条</span>
+            <div class="page-btns">
+              <button class="btn btn-default btn-sm" :disabled="page <= 1" @click="goPage(1)">首页</button>
+              <button class="btn btn-default btn-sm" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
+              <span class="page-jump">
+                第 <input type="number" class="input input-page" v-model.number="pageInput" @keyup.enter="jumpPage" min="1" :max="totalPages" /> / {{ totalPages }} 页
+              </span>
+              <button class="btn btn-default btn-sm" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
+              <button class="btn btn-default btn-sm" :disabled="page >= totalPages" @click="goPage(totalPages)">末页</button>
+            </div>
+            <div class="page-size">
+              每页
+              <select class="select select-sm" v-model.number="size" @change="onSizeChange">
+                <option :value="10">10</option>
+                <option :value="20">20</option>
+                <option :value="50">50</option>
+                <option :value="100">100</option>
+              </select>
+              条
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SSH 连接弹窗：复用主站同一套样式类，确认后在新标签打开独立终端页 -->
+      <div class="modal-overlay animated" :class="{ open: connectVisible }" @click.self="closeConnect">
+        <div class="modal bastion-connect-modal" style="width:680px">
+          <div class="modal-header">
+            <h2>SSH 连接</h2>
+            <button class="btn-close" @click="closeConnect">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="conn-subline">
+              选择网络类型和凭证后连接 <span class="sub-badge">{{ connectAsset.name }}</span>
+            </div>
+            <div class="bastion-host-card">
+              <div class="bastion-host-card-label">目标主机</div>
+              <div class="bastion-host-card-name">{{ connectAsset.name }}</div>
+            </div>
+            <div class="form-group" style="margin-bottom:20px">
+              <label class="bastion-section-label">网络类型</label>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <label class="bastion-ip-card" :class="{ active: connectNetwork === 'public' }" v-if="connectAsset.public_ip">
+                  <input type="radio" v-model="connectNetwork" value="public" />
+                  <div class="bastion-ip-card-tag">公网</div>
+                  <div class="bastion-ip-card-addr">{{ connectAsset.public_ip }}<span class="conn-port">:{{ connectAsset.port || 22 }}</span></div>
+                </label>
+                <label class="bastion-ip-card" :class="{ active: connectNetwork === 'private' }" v-if="connectAsset.private_ip">
+                  <input type="radio" v-model="connectNetwork" value="private" />
+                  <div class="bastion-ip-card-tag">内网</div>
+                  <div class="bastion-ip-card-addr">{{ connectAsset.private_ip }}<span class="conn-port">:{{ connectAsset.port || 22 }}</span></div>
+                </label>
+                <div v-if="!connectAsset.public_ip && !connectAsset.private_ip" class="bastion-cust-sel-empty">该资产没有可用 IP</div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="bastion-section-label">账号凭证</label>
+              <div class="bastion-cust-sel" :class="{ active: connectCredDrpOpen }">
+                <div class="bastion-cust-sel-trigger" @click.stop="connectCredDrpOpen = !connectCredDrpOpen">
+                  {{ credLabel() }}
+                  <span class="bastion-cust-sel-arrow">▼</span>
+                </div>
+                <div class="bastion-cust-sel-drop" :class="{ open: connectCredDrpOpen }" @wheel.stop>
+                  <div v-if="!connectCredList.length" class="bastion-cust-sel-empty">暂无可用凭证，请先授权该资产给当前用户</div>
+                  <div class="bastion-cust-sel-item" v-for="c in connectCredList" :key="c.id"
+                       :class="{ sel: connectCredId === c.id }"
+                       @click.stop="connectCredId = c.id; connectCredDrpOpen = false">🔑 {{ c.name }}({{ c.username }})</div>
+                </div>
+              </div>
+            </div>
+            <div class="bastion-connect-actions">
+              <button class="btn btn-default bastion-connect-btn" @click="closeConnect">取消</button>
+              <button class="btn btn-primary bastion-connect-btn" @click="doConnect"
+                      :disabled="!connectCredId || connectLoading">{{ connectLoading ? '加载中...' : '连接' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </script>
+
+  <script src="/assets/js/core.js?v=20261109f"></script>
+  <script src="/assets/js/pages/bastion.js?v=20261109d"></script>
+</body>
+</html>

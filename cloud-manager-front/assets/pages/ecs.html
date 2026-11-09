@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>ECS实例 - 云管平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
+  <script src="/assets/js/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="text/x-template" id="page-template">
+    <div class="ecs-page">
+      <div class="page-header">
+        <h2>ECS实例</h2>
+        <div class="sync-btn-group">
+          <button class="btn btn-primary btn-sm" @click="openEcsManualModal()" style="margin-right:8px" v-if="isAdmin">手动添加</button>
+          <button class="btn btn-primary btn-sm" @click="openSync">同步ECS实例</button>
+        </div>
+      </div>
+
+      <div class="cdn-layout">
+        <aside class="cdn-drawer nav-dir">
+          <div class="nav-dir-head"><span class="nav-dir-title">选择账号</span></div>
+          <div class="nav-dir-search">
+            <i class="fas fa-search"></i>
+            <input type="text" class="nav-dir-search-input" v-model="navDirKeyword" placeholder="输入平台或账号实时筛选" autocomplete="off" />
+            <button v-if="navDirKeyword" class="nav-dir-search-clear" type="button" title="清空" @click.stop="navDirKeyword = ''">✕</button>
+          </div>
+          <div class="cdn-drawer-title">筛选</div>
+          <button class="cdn-drawer-item" :class="{ active: !filters.platform && !filters.account }" @click="selectFilter('', '')">全部实例</button>
+          <template v-for="pf in filteredPlatforms" :key="pf">
+            <div class="cdn-drawer-group" :class="{ active: filters.platform === pf && !filters.account }" @click="selectFilter(pf, '')">{{ platformLabel(pf) }}</div>
+            <button v-for="acc in accountsOfPlatform(pf)" :key="pf + '-' + acc" class="cdn-drawer-item sub-2" :class="{ active: filters.account === acc }" @click="selectFilter(pf, acc)" :title="acc">{{ acc }}</button>
+          </template>
+        </aside>
+
+        <div class="cdn-main">
+          <!-- 3.html 款：筛选栏 + 表格 + 分页合成一张毛玻璃大圆角卡片 -->
+          <div class="srv-card">
+          <div class="filter-bar">
+            <div class="filter-row">
+              <input type="text" class="input" placeholder="搜索实例名 / ID / IP / 账户名..." v-model="filters.keyword" @input="onKeywordInput" />
+              <select class="select" v-model="filters.is_offline" @change="search">
+                <option value="">上下线:全部</option>
+                <option value="0">在线</option>
+                <option value="1">已下线</option>
+              </select>
+              <select class="select" v-model="filters.region" @change="search">
+                <option value="">全部地域</option>
+                <option v-for="r in regions" :key="r" :value="r">{{ r }}</option>
+              </select>
+              <button class="btn btn-default" @click="resetFilters">重置</button>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="table table-fixed ecs-table">
+              <thead>
+                <tr>
+                  <th>实例ID/名称</th>
+                  <th>平台</th>
+                  <th>账号</th>
+                  <th>状态</th>
+                  <th>规格</th>
+                  <th>CPU</th>
+                  <th>内存(GB)</th>
+                  <th>操作系统</th>
+                  <th>IP地址</th>
+                  <th>SSH端口</th>
+                  <th>地域</th>
+                  <th>可用区</th>
+                  <th>创建时间</th>
+                  <th>来源</th>
+                  <th>操作</th>
+                  </tr>
+                  </thead>
+                  <tbody>
+                  <tr v-if="loading"><td colspan="15" class="text-center py-40">加载中...</td></tr>
+                  <tr v-else-if="list.length === 0"><td colspan="15" class="text-center py-40 text-gray">暂无数据</td></tr>
+                <tr v-for="item in list" :key="item.instance_id">
+                  <td>
+                    <div class="domain-name">{{ item.instance_name || item.instance_id }}</div>
+                    <div class="domain-remark text-mono">{{ item.instance_id }}</div>
+                  </td>
+                  <td><span class="tag tag-platform">{{ platformLabel(item.platform) }}</span></td>
+                  <td>{{ item.account_name }}</td>
+                  <td>
+                    <span v-if="item.is_offline === 1"><span class="dot dot-offline"></span><span class="text-gray">已下线</span></span>
+                    <span v-else><span class="dot" :class="dotClass(item.status)"></span>{{ statusLabel(item.status) }}</span>
+                  </td>
+                  <td>{{ item.instance_type || '-' }}</td>
+                  <td>{{ item.cpu }}</td>
+                  <td>{{ item.memory }}</td>
+                  <td class="text-sm">{{ item.os_name || '-' }}</td>
+                  <td>
+                    <div class="ip-list">
+                      <div v-if="item.public_ip_address" class="ip-line"><span class="text-mono">{{ item.public_ip_address }}</span><span class="ip-tag ip-tag-public">公网</span></div>
+                      <div v-if="item.eip_address" class="ip-line"><span class="text-mono">{{ item.eip_address }}</span><span class="ip-tag ip-tag-eip">弹性</span></div>
+                      <div v-if="item.private_ip_address" class="ip-line"><span class="text-mono">{{ item.private_ip_address }}</span><span class="ip-tag ip-tag-private">私网</span></div>
+                    </div>
+                  </td>
+                  <td class="text-mono">{{ item.ssh_port || 22 }}</td>
+                  <td class="text-sm">{{ item.region_name || '-' }}</td>
+                  <td class="text-sm">{{ item.zone_name || item.availability_zone || '-' }}</td>
+                  <td class="text-sm">{{ formatDate(item.creation_time) }}</td>
+                  <td><span :class="item.source === 'manual' ? 'tag tag-success' : 'tag tag-platform'">{{ item.source === 'manual' ? '手动' : '同步' }}</span></td>
+                  <td>
+                    <button class="btn btn-text btn-sm" v-if="isAdmin && item.source === 'manual'" @click="openEcsManualModal(item)">编辑</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pagination">
+            <span class="page-info">共 {{ total }} 条</span>
+            <div class="page-btns">
+              <button class="btn btn-default btn-sm" :disabled="page <= 1" @click="goPage(1)">首页</button>
+              <button class="btn btn-default btn-sm" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
+              <span class="page-jump">
+                第 <input type="number" class="input input-page" v-model.number="pageInput" @keyup.enter="jumpPage" min="1" :max="totalPages" /> / {{ totalPages }} 页
+              </span>
+              <button class="btn btn-default btn-sm" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
+              <button class="btn btn-default btn-sm" :disabled="page >= totalPages" @click="goPage(totalPages)">末页</button>
+            </div>
+            <div class="page-size">
+              每页
+              <select class="select select-sm" v-model.number="size" @change="onSizeChange">
+                <option :value="10">10</option>
+                <option :value="20">20</option>
+                <option :value="50">50</option>
+                <option :value="100">100</option>
+              </select>
+              条
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ECS手动添加/编辑弹窗 -->
+    <div class="modal-overlay" v-if="ecsManualModalVisible">
+      <div class="modal">
+        <div class="modal-header"><h2>{{ ecsManualEditing ? '编辑实例' : '手动添加实例' }}</h2><button class="btn-close" @click="ecsManualModalVisible = false">&times;</button></div>
+        <div class="modal-body">
+          <div class="form-vertical">
+            <div class="form-group"><label>实例名称 <span class="text-danger">*</span></label><input type="text" class="input input-full" v-model="ecsManualForm.instance_name" placeholder="如 Web服务器" /></div>
+            <div class="form-group"><label>公网IP</label><input type="text" class="input input-full" v-model="ecsManualForm.public_ip" placeholder="如 1.2.3.4" /></div>
+            <div class="form-group"><label>弹性IP</label><input type="text" class="input input-full" v-model="ecsManualForm.eip" placeholder="如 47.2.68.x（EIP 绑定地址）" /></div>
+            <div class="form-group"><label>内网IP</label><input type="text" class="input input-full" v-model="ecsManualForm.private_ip" placeholder="如 10.0.0.1" /></div>
+            <div class="form-group"><label>SSH 端口</label><input type="number" min="1" max="65535" class="input input-full" v-model.number="ecsManualForm.ssh_port" placeholder="默认 22，堡垒机连接使用" /></div>
+            <div class="form-row-2"><div class="form-group"><label>规格</label><input type="text" class="input input-full" v-model="ecsManualForm.instance_type" placeholder="如 ecs.g7.xlarge" /></div><div class="form-group"><label>平台</label><input type="text" class="input input-full" v-model="ecsManualForm.platform" placeholder="如 aliyun" /></div></div>
+            <div class="form-row-2"><div class="form-group"><label>CPU</label><input type="number" class="input input-full" v-model.number="ecsManualForm.cpu" placeholder="核数" /></div><div class="form-group"><label>内存(GB)</label><input type="number" class="input input-full" v-model.number="ecsManualForm.memory" placeholder="GB" /></div></div>
+            <div class="form-group"><label>操作系统</label><input type="text" class="input input-full" v-model="ecsManualForm.os_name" placeholder="如 CentOS 7.9" /></div>
+            <div class="form-row-2"><div class="form-group"><label>地域</label><input type="text" class="input input-full" v-model="ecsManualForm.region_name" placeholder="如 上海" /></div><div class="form-group"><label>可用区</label><input type="text" class="input input-full" v-model="ecsManualForm.zone_name" placeholder="如 上海可用区B" /></div></div>
+            <div class="form-group"><label>账号</label><input type="text" class="input input-full" v-model="ecsManualForm.account_name" placeholder="账号名" /></div>
+          </div>
+          <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+            <button class="btn btn-default" @click="ecsManualModalVisible = false">取消</button>
+            <button class="btn btn-primary" @click="saveEcsManual" :disabled="ecsManualSaving">{{ ecsManualSaving ? '保存中...' : '保存' }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </script>
+
+  <script src="/assets/js/core.js?v=20261109f"></script>
+  <script src="/assets/js/shared-sync.js?v=20261108i"></script>
+  <script src="/assets/js/pages/ecs.js?v=20261108i"></script>
+</body>
+</html>

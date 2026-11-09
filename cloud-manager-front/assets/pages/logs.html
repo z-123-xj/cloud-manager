@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>日志排查 - 云管平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
+  <script src="/assets/js/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    /* 顶栏 / 导航抽屉 / 全局搜索由 core.js 的公共 LAYOUT 提供，本页只放业务样式 */
+    .topbar-left .page-title { cursor: default !important; display: inline-flex !important; align-items: center; gap: 6px; }
+    .topbar-left .page-title i { color: #3c8ac7; font-size: 12px; }
+    .log-session-error {
+      margin: 1rem 1.5rem 0; padding: .9rem 1.1rem;
+      border: 1px solid rgba(220, 53, 69, .25); border-radius: 12px;
+      background: rgba(220, 53, 69, .08); color: #b02a37;
+      font-size: .9rem; line-height: 1.6;
+    }
+    .log-session-error a { color: #1d4e7a; font-weight: 600; margin-left: 8px; }
+    .log-debug-cmd {
+      margin-top: 1rem; padding: .9rem 1rem; border-radius: 12px;
+      border: 1px solid rgba(45, 106, 159, .14); background: rgba(45, 106, 159, .035);
+    }
+    .log-debug-cmd-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      font-size: .85rem; font-weight: 600; color: #0b2b44; margin-bottom: .5rem;
+    }
+    .log-debug-cmd code {
+      display: block; padding: .7rem .8rem; border-radius: 8px;
+      background: #0b2b44; color: #d7e9f8; font-size: .78rem; line-height: 1.6;
+      white-space: pre-wrap; overflow-wrap: anywhere; user-select: all;
+    }
+    .log-debug-cmd p { margin: .5rem 0 0; font-size: .75rem; line-height: 1.5; }
+    .eco-panel { margin-top: .2rem; }
+    .eco-box {
+      padding: .8rem 1rem; border-radius: 12px;
+      border: 1px solid rgba(45, 106, 159, .14); background: rgba(45, 106, 159, .035);
+    }
+    .eco-head {
+      display: flex; align-items: center; gap: .5rem; margin-bottom: .6rem;
+      font-size: .85rem; font-weight: 600; color: #0b2b44;
+    }
+    .eco-head i { color: #3c8ac7; }
+    .eco-badge { font-size: .72rem; font-weight: 600; padding: .15rem .55rem; border-radius: 999px; }
+    .eco-badge.ok { color: #157347; background: rgba(21, 115, 71, .1); }
+    .eco-badge.pending { color: #a1620a; background: rgba(161, 98, 10, .1); }
+    .eco-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .6rem 1.2rem; }
+    .eco-grid > div { display: flex; flex-direction: column; gap: .2rem; min-width: 0; font-size: .78rem; }
+    .eco-grid code { font-size: .74rem; color: #1d4e7a; overflow-wrap: anywhere; }
+    .eco-box p { margin: .6rem 0 0; font-size: .75rem; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="text/x-template" id="page-template">
+    <div class="log-page">
+      <div class="log-card log-query-panel log-explorer">
+          <div class="form-grid">
+            <div class="form-group col-3">
+              <label><i class="fas fa-server"></i> 服务器 <span class="hint">(支持实时搜索)</span></label>
+              <div class="combo">
+                <input class="input" v-model="logAssetSearch" @focus="logAssetComboOpen = true" @input="logAssetComboOpen = true" @blur="logAssetComboOpen = false" placeholder="输入名称或 IP 实时筛选" style="width:100%" />
+                <div class="combo-list" v-if="logAssetComboOpen">
+                  <div class="combo-item" v-for="a in filteredLogAssets" :key="a.id" @mousedown.prevent="selectLogAsset(a)">
+                    {{ a.instance_name || a.name }} ({{ a.public_ip_address || a.eip_address || a.private_ip_address }})
+                  </div>
+                  <div class="combo-empty" v-if="!filteredLogAssets.length">无匹配服务器</div>
+                </div>
+              </div>
+            </div>
+            <div class="form-group col-3">
+              <label><i class="fas fa-network-wired"></i> 网络</label>
+              <select class="input" v-model="logNetwork">
+                <option v-if="!selectedAssetNetworks.length" value="">请先选择服务器</option>
+                <option v-for="n in selectedAssetNetworks" :key="n.key" :value="n.key">{{ n.label }}：{{ n.ip }}</option>
+              </select>
+            </div>
+            <div class="form-group col-6">
+              <label><i class="fas fa-key"></i> 凭证</label>
+              <select class="input" v-model="logCredId">
+                <option value="0">请选择</option>
+                <option v-for="c in logCreds" :key="c.id" :value="c.id">{{ c.name }} ({{ c.auth_type === 'private_key' ? '密钥' : '密码' }})</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ===== 第一步：路径探查 ===== -->
+          <div class="step-head"><span class="step-num">1</span> 路径探查 <span class="text-gray">域名来自当前日志与切割备份目录</span></div>
+          <div class="form-grid">
+            <div class="form-group col-8">
+              <label><i class="fas fa-folder-open"></i> 日志目录 <span class="hint">(平台自动同步分析 / 切割脚本版本)</span></label>
+              <div class="path-row">
+                <div class="log-dir-box">
+                  <div><i class="fas fa-file-alt"></i> {{ logCurrentDir }}/*.log <span class="text-gray">当前日志</span></div>
+                  <div><i class="fas fa-archive"></i> {{ logBackupDir }}/*.log.*.gz <span class="text-gray">原始备份</span></div>
+                  <div><i class="fas fa-bolt"></i> {{ logPreparedDir }}/*.tsv.gz <span class="text-gray">预生成分析数据</span></div>
+                </div>
+                <button class="btn-primary" :disabled="logExploring" @click="exploreLogs" style="flex-shrink:0;align-self:stretch">
+                  <i class="fas fa-search"></i> {{ logExploring ? '探查中...' : '分析路径' }}
+                </button>
+              </div>
+              <span v-if="logExploreError" class="text-danger" style="font-size:12px;white-space:pre-wrap;line-height:1.5">{{ logExploreError }}</span>
+            </div>
+            <div class="form-group col-4">
+              <label><i class="fas fa-terminal"></i> 分析脚本路径 <span class="hint">(内容与仓库版本不一致时自动同步)</span></label>
+              <input class="input" v-model="logScriptPath" placeholder="/usr/local/sbin/nginx_analyzer.sh" style="font-family:monospace" />
+              <span v-if="logDomains.length" class="text-gray" style="font-size:12px;line-height:1.5">
+                <i class="fas" :class="logScriptSynced ? 'fa-check-circle' : 'fa-sync-alt'"></i>
+                {{ logScriptSynced ? '脚本版本一致，可直接调用' : logScriptExists ? '服务器脚本版本不同，分析时将自动同步' : '服务器暂无脚本，分析时将自动写入' }}
+              </span>
+            </div>
+          </div>
+
+          <div v-if="logDomains.length" class="form-grid explore-panel">
+            <div class="form-group col-6">
+              <label>
+                <i class="fas fa-globe"></i> 域名 <span class="hint">(已选 {{ logSelectedDomains.length }} / {{ logDomains.length }})</span>
+                <span class="domain-actions"><a href="#" @click.prevent="selectAllLogDomains">全选</a><a href="#" @click.prevent="invertLogDomains">反选</a></span>
+              </label>
+              <div class="domain-list">
+                <label class="checkbox-label domain-item" v-for="d in logDomains" :key="d">
+                  <input type="checkbox" :value="d" v-model="logSelectedDomains" />
+                  <span class="domain-name">{{ d }}</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-group col-6">
+              <label>
+                <i class="fas fa-code"></i> 日志格式预览
+                <span class="fmt-badge" :class="logFormatSource === 'nginx_conf' ? 'ok' : 'fallback'">{{ logFormatSource === 'nginx_conf' ? ('自动读取 · ' + (logFormatName || 'Nginx')) : '系统默认 Combined' }}</span>
+              </label>
+              <textarea class="input" :value="logFormat" rows="3" readonly style="width:100%;font-family:monospace;font-size:12px;background:rgba(0,0,0,.02)"></textarea>
+              <span v-if="logFormatWarning" class="fmt-warn"><i class="fas fa-exclamation-triangle"></i> {{ logFormatWarning }}</span>
+              <span class="text-gray" style="font-size:12px;line-height:1.5">分析脚本按此 log_format 逐字段提取（按 access_log 绑定选格式）；读不到配置时脚本自行探测，仍失败才回退内置正则。</span>
+            </div>
+          </div>
+
+          <!-- ===== 备份 + 预生成 + 分析 闭环状态 ===== -->
+          <div v-if="logExplored" class="form-grid eco-panel">
+            <div class="col-12">
+              <div class="eco-box">
+                <div class="eco-head">
+                  <i class="fas fa-recycle"></i> 备份 + 分析闭环
+                  <span class="eco-badge" :class="logRotateSynced ? 'ok' : 'pending'">{{ logRotateSynced ? '已接入' : '待首次分析接入' }}</span>
+                </div>
+                <div class="eco-grid">
+                  <div>
+                    <span class="text-gray">预生成数据</span>
+                    <code>{{ logPreparedDir }}/*.tsv.gz</code>
+                    <span>已有 {{ logPreparedFiles }} 份（分析优先读，缺失回退原始 .gz）</span>
+                  </div>
+                  <div>
+                    <span class="text-gray">切割脚本</span>
+                    <code>{{ logRotatePath }}</code>
+                    <span>{{ logRotateSynced ? '版本一致，切割时自动产出分析数据' : logRotateExists ? '版本不同，分析时自动同步' : '尚未安装，分析时自动写入' }}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray">定时切割</span>
+                    <code>0 0 * * *</code>
+                    <span>{{ logRotateCron ? '已配置，每天 0 点执行' : '未检测到，分析时将自动补装 cron' }}</span>
+                  </div>
+                </div>
+                <p class="text-gray">首次点击「开始分析」会把切割脚本、cron 与 log_format 下发到服务器；此后每天 0 点切割备份原始日志（按日志所属自然日命名，即前一天）的同时，产出分析所需的全量 7 列 TSV.gz。平台上线前的历史备份没有预生成数据，分析时会自动直接解析源 .gz，无需迁移。</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== 第二步：条件过滤与聚合 ===== -->
+          <div class="step-head"><span class="step-num">2</span> 条件过滤与聚合 <span class="text-gray">勾选域名后，参数直传给服务器上的分析脚本</span></div>
+          <div class="form-grid">
+            <div class="form-group col-4">
+              <label><i class="fas fa-filter"></i> 过滤 IP <span class="hint">(精确匹配)</span></label>
+              <input class="input" v-model="logFilterIp" placeholder="如 1.2.3.4" />
+            </div>
+            <div class="form-group col-4">
+              <label><i class="fas fa-link"></i> 过滤 URL <span class="hint">(awk 正则，如 api 或 login|logout)</span></label>
+              <input class="input" v-model="logFilterUrl" placeholder="如 api 或 login|logout" style="font-family:monospace" />
+            </div>
+            <div class="form-group col-4">
+              <label><i class="fas fa-code"></i> 过滤状态码 <span class="hint">(精确，如 404)</span></label>
+              <input class="input" v-model="logFilterStatus" placeholder="如 404" />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group col-4">
+              <label><i class="fas fa-calendar-alt"></i> 起始时间 <span class="hint">(可选，转换成 Nginx 时间格式)</span></label>
+              <input class="input" type="datetime-local" v-model="logStart" @change="markCustomRange" />
+            </div>
+            <div class="form-group col-4">
+              <label><i class="fas fa-calendar-check"></i> 结束时间 <span class="hint">(可选)</span></label>
+              <input class="input" type="datetime-local" v-model="logEnd" @change="markCustomRange" />
+            </div>
+            <div class="form-group col-4">
+              <label><i class="fas fa-clock"></i> 快捷范围</label>
+              <div class="quick-ranges">
+                <button class="btn-chip" type="button" :class="{ active: activeLogRange === '1h' }" @click="setLogRange('1h')">最近1小时</button>
+                <button class="btn-chip" type="button" :class="{ active: activeLogRange === 'today' }" @click="setLogRange('today')">今天</button>
+                <button class="btn-chip" type="button" :class="{ active: activeLogRange === 'yesterday' }" @click="setLogRange('yesterday')">昨天</button>
+                <button class="btn-chip" type="button" :class="{ active: activeLogRange === '7d' }" @click="setLogRange('7d')">最近7天</button>
+                <button class="btn-chip" type="button" :class="{ active: activeLogRange === 'all' }" @click="setLogRange('all')" title="不传时间参数：扫描当前日志 + 全部切割备份（预生成 TSV.gz 与历史原始 .gz）">全部</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="col-12" style="display:flex; flex-direction:column; align-items:flex-end; margin-top:.5rem;">
+              <button class="btn-primary" :disabled="logLoading || !logDomains.length" @click="queryLogs">
+                <i class="fas fa-play"></i> {{ logLoading ? (logTaskStatus || '分析中...') : '开始分析' }}
+              </button>
+              <span v-if="logError" class="text-danger" style="margin-top:.7rem; align-self:stretch; text-align:left; white-space:pre-wrap; line-height:1.5;">{{ logError }}</span>
+            </div>
+          </div>
+
+          <!-- 本次传参：可直接复制到服务器执行，验证脚本本身有没有数据 -->
+          <div v-if="logDebugCmd" class="log-debug-cmd">
+            <div class="log-debug-cmd-head">
+              <span><i class="fas fa-terminal"></i> 本次传参 / 服务器复现命令</span>
+              <button class="btn-chip" type="button" @click="copyDebugCmd">{{ logDebugCopied ? '已复制' : '复制命令' }}</button>
+            </div>
+            <code>{{ logDebugCmd }}</code>
+            <p class="text-gray">在目标服务器直接执行即可跳过同步逻辑；显示 '' 的参数即为空，空 START_DATE/END_DATE 时脚本会读取全部切割备份与预生成数据。</p>
+          </div>
+        </div>
+
+        <div v-if="logResult" class="log-result log-explorer">
+          <div class="log-summary">
+            <i class="fas fa-check-circle"></i> 分析完成 ｜ 已选域名 {{ logSelectedDomains.length }} 个 ｜
+            耗时 {{ logElapsed }} ms ｜ 脚本 {{ logScriptPath }}
+          </div>
+          <p class="text-gray" style="font-size:12px;margin:6px 0 12px">
+            按住 <kbd>Ctrl</kbd> 单击下方统计项可加入过滤条件，普通单击不会触发分析；条件设置好后点击「开始分析」重新查询。
+          </p>
+          <div v-if="logWarning" class="log-session-error">
+            <i class="fas fa-exclamation-triangle"></i> {{ logWarning }}
+          </div>
+
+          <!-- 小时趋势 -->
+          <div class="log-card log-trend-card">
+            <h3>请求小时趋势 <span class="log-hint">Hourly Trend（全局）</span></h3>
+            <div class="log-trend" v-if="logGlobal.hourly_trend && logGlobal.hourly_trend.length">
+              <div v-for="(row, i) in logGlobal.hourly_trend" :key="'ht'+i" class="log-trend-col" :title="row.hour + ' : ' + row.count + ' 次'">
+                <span class="log-trend-val">{{ row.count }}</span>
+                <div class="log-trend-bar" :style="{ height: trendBarHeight(row.count) }"></div>
+                <span class="log-trend-label">{{ trendHourLabel(row.hour) }}</span>
+              </div>
+            </div>
+            <p v-else class="text-gray">无数据</p>
+          </div>
+
+          <div class="log-cols">
+            <div class="log-card log-col">
+              <h3>域名请求分布 <span class="log-hint">Domain Hit Count</span></h3>
+              <div v-for="(row, i) in logDomainStats" :key="'dh'+i" class="log-bar-row log-clickable" :title="'按住 Ctrl 单击只分析此域名'" @click.ctrl="filterByDomain(row.domain)">
+                <span class="log-bar-label">{{ row.domain }}</span>
+                <span class="log-bar-val">{{ row.total_requests }}</span>
+              </div>
+              <p v-if="!logDomainStats.length" class="text-gray">无数据</p>
+            </div>
+            <div class="log-card log-col">
+              <h3>请求方法分布 <span class="log-hint">HTTP Methods</span></h3>
+              <div v-for="(row, i) in (logGlobal.method_distribution || [])" :key="'md'+i" class="log-bar-row">
+                <span class="log-bar-label">{{ row.method }}</span>
+                <span class="log-bar-val">{{ row.count }}</span>
+              </div>
+              <p v-if="!(logGlobal.method_distribution && logGlobal.method_distribution.length)" class="text-gray">无数据</p>
+            </div>
+            <div class="log-card log-col">
+              <h3>总流量榜 <span class="log-hint">Top URLs by Traffic</span></h3>
+              <div v-for="(row, i) in (logGlobal.top_urls_traffic || [])" :key="'ub'+i" class="log-bar-row">
+                <span class="log-bar-label" :title="row.url">{{ row.url }}</span>
+                <span class="log-bar-val">{{ fmtBytes(row.traffic) }}</span>
+              </div>
+              <p v-if="!(logGlobal.top_urls_traffic && logGlobal.top_urls_traffic.length)" class="text-gray">无数据</p>
+            </div>
+            <div class="log-card log-col">
+              <h3>请求频次榜 <span class="log-hint">Top URLs by Hits</span></h3>
+              <div v-for="(row, i) in (logGlobal.top_urls_hits || [])" :key="'uh'+i" class="log-bar-row log-clickable" :title="'按住 Ctrl 单击按此 URL 过滤'" @click.ctrl="filterByUrl(row.url)">
+                <span class="log-bar-label" :title="row.url">{{ row.url }}</span>
+                <span class="log-bar-val">{{ row.count }}</span>
+              </div>
+              <p v-if="!(logGlobal.top_urls_hits && logGlobal.top_urls_hits.length)" class="text-gray">无数据</p>
+            </div>
+            <div class="log-card log-col">
+              <h3>客户端 IP 榜 <span class="log-hint">Top IPs</span></h3>
+              <div v-for="(row, i) in (logGlobal.top_ips || [])" :key="'ip'+i" class="log-bar-row log-clickable" :title="'按住 Ctrl 单击按此 IP 过滤'" @click.ctrl="logFilterIp = row.ip">
+                <span class="log-bar-label">{{ row.ip }}</span>
+                <span class="log-bar-val">{{ row.count }}</span>
+              </div>
+              <p v-if="!(logGlobal.top_ips && logGlobal.top_ips.length)" class="text-gray">无数据</p>
+            </div>
+            <div class="log-card log-col">
+              <h3>状态码分布 <span class="log-hint">Status Codes</span></h3>
+              <div v-for="(row, i) in (logGlobal.status_distribution || [])" :key="'sd'+i" class="log-bar-row log-clickable" :title="'按住 Ctrl 单击按此状态码过滤'" @click.ctrl="logFilterStatus = row.status">
+                <span class="log-bar-label" :class="{ 'text-danger': String(row.status).charAt(0) === '4' || String(row.status).charAt(0) === '5' }">{{ row.status }}</span>
+                <span class="log-bar-val">{{ row.count }}</span>
+              </div>
+              <p v-if="!(logGlobal.status_distribution && logGlobal.status_distribution.length)" class="text-gray">无数据</p>
+            </div>
+          </div>
+
+          <!-- 分域名明细 -->
+          <div v-if="logDomainStats.length" class="log-card log-domain-detail">
+            <div class="log-domain-detail-head">
+              <h3>分域名明细 <span class="log-hint">Per-domain Breakdown</span></h3>
+              <select class="input" v-model="logActiveDomain" style="width:auto;min-width:220px">
+                <option v-for="d in logDomainStats" :key="d.domain" :value="d.domain">{{ d.domain }}（{{ d.total_requests }} 次）</option>
+              </select>
+            </div>
+            <div class="log-cols" v-if="logActiveDomainStat">
+              <div class="log-card log-col">
+                <h3>Top URL 频次</h3>
+                <div v-for="(row, i) in (logActiveDomainStat.top_urls_hits || [])" :key="'duh'+i" class="log-bar-row">
+                  <span class="log-bar-label" :title="row.url">{{ row.url }}</span><span class="log-bar-val">{{ row.count }}</span>
+                </div>
+                <p v-if="!(logActiveDomainStat.top_urls_hits && logActiveDomainStat.top_urls_hits.length)" class="text-gray">无数据</p>
+              </div>
+              <div class="log-card log-col">
+                <h3>Top URL 流量</h3>
+                <div v-for="(row, i) in (logActiveDomainStat.top_urls_traffic || [])" :key="'dut'+i" class="log-bar-row">
+                  <span class="log-bar-label" :title="row.url">{{ row.url }}</span><span class="log-bar-val">{{ fmtBytes(row.traffic) }}</span>
+                </div>
+                <p v-if="!(logActiveDomainStat.top_urls_traffic && logActiveDomainStat.top_urls_traffic.length)" class="text-gray">无数据</p>
+              </div>
+              <div class="log-card log-col">
+                <h3>Top IP</h3>
+                <div v-for="(row, i) in (logActiveDomainStat.top_ips || [])" :key="'dip'+i" class="log-bar-row">
+                  <span class="log-bar-label">{{ row.ip }}</span><span class="log-bar-val">{{ row.count }}</span>
+                </div>
+                <p v-if="!(logActiveDomainStat.top_ips && logActiveDomainStat.top_ips.length)" class="text-gray">无数据</p>
+              </div>
+              <div class="log-card log-col">
+                <h3>状态码分布</h3>
+                <div v-for="(row, i) in (logActiveDomainStat.status_distribution || [])" :key="'ds'+i" class="log-bar-row">
+                  <span class="log-bar-label" :class="{ 'text-danger': String(row.status).charAt(0) === '4' || String(row.status).charAt(0) === '5' }">{{ row.status }}</span>
+                  <span class="log-bar-val">{{ row.count }}</span>
+                </div>
+                <p v-if="!(logActiveDomainStat.status_distribution && logActiveDomainStat.status_distribution.length)" class="text-gray">无数据</p>
+              </div>
+            </div>
+          </div>
+        </div>
+    </div>
+  </script>
+  <script src="/assets/js/core.js?v=20261109f"></script>
+  <script src="/assets/js/logs.js?v=20261109e"></script>
+</body>
+</html>

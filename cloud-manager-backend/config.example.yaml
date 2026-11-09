@@ -1,0 +1,62 @@
+# config/config.yaml 配置模板
+# 使用方法：复制本文件为 config.yaml，然后修改下方各配置项
+#   cp config.example.yaml config.yaml
+# 注意：config.yaml 已被 .gitignore 忽略，不会提交到仓库
+
+database:
+  mysql:
+    host: "127.0.0.1"          # TODO: MySQL 地址（必改）
+    port: 3306
+    user: "your_user"          # TODO: MySQL 用户名（必改）
+    password: "your_password"  # TODO: MySQL 密码（必改）
+    dbname: "cloud_manager"    # 数据库名（需提前创建，字符集 utf8mb4）
+    charset: "utf8mb4"
+
+redis:
+  # 预留配置项，当前版本代码未使用 Redis，可忽略
+  host: "127.0.0.1"
+  port: 6379
+  password: ""
+
+# 前端静态文件目录（后端自带的前端托管能力使用）
+# 生产由 Nginx 直接托管静态文件，此项仅在直连后端 :8080 / 回滚时生效。
+# 相对路径以进程工作目录为基准；也可用环境变量 FRONTEND_DIR 覆盖。
+# 目录不再要求与后端同级，改这里即可指向任意位置。
+frontend:
+  dir: "../cloud-manager-front"
+
+# 堡垒机（SSH 资产管理），不需要时关闭可节省资源
+bastion:
+  enabled: false               # 是否启用堡垒机功能（默认关闭，需要 SSH 终端/SFTP 时改为 true）
+  max_sessions: 200            # 最大并发 SSH 会话数
+  # SSH 会话无操作自动断开时长（分钟）。仅统计真实终端 I/O（远端输出 / 用户输入），
+  # 前端心跳(ping)与 resize 不计入活跃，因此空闲 30 分钟会被回收；刷新页面若在此窗口内会复用同一 shell。
+  session_timeout: 30
+  # 全局默认 SSH 端口：资产(ecs_instances.ssh_port)为空或非法时回退到此端口（老数据兜底）
+  default_ssh_port: 22
+  # 批量命令/脚本执行：复用堡垒机资产与 SSH 凭证，以下为防误操作的资源上限
+  batch_max_concurrency: 20      # 单任务最大并发台数
+  batch_max_timeout_sec: 3600    # 单台最大执行超时（秒）
+  batch_max_script_bytes: 32768  # 脚本内容最大字节数
+  batch_max_output_bytes: 16384  # 单台 stdout/stderr 各自留存的最大字节数
+  batch_max_assets: 200          # 单任务最多可选主机数
+
+# 日志配置
+log:
+  level: info             # 日志级别: debug, info, warn, error（生产建议 info，debug 会记录请求体与 SSH 认证细节）
+  path: "./logs"               # 日志目录（按天轮转，如 cloud-manager-2026-07-17.log）；为空则仅输出到控制台
+  max_age_days: 7        # 日志保留天数（按天轮转后自动清理过期文件），0=永久保留
+
+# 服务器资源限制
+# ┌─ K8s 部署注意 ─────────────────────────────────┐
+# │ Pod memory limit 应该 > memory_limit_mb         │
+# │ 建议 Pod 1GB → Go 软限制 800MB，留 200MB 余量    │
+# │ 否则 K8s OOMKill 会直接杀 Pod，来不及 GC 回收     │
+# └────────────────────────────────────────────────┘
+server:
+  port: 8080             # 监听端口
+  memory_limit_mb: 512   # Go运行时内存软限制(MB)，超此值GC更激进
+  gc_percent: 50         # GC触发阈值百分比，默认100，越小GC越频繁
+  read_timeout: 30       # HTTP读取请求超时(秒)
+  write_timeout: 60      # HTTP写入响应超时(秒)
+  idle_timeout: 120      # HTTP空闲连接超时(秒)

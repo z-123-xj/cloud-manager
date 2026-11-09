@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>批量执行 - 云管平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
+  <script src="/assets/js/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    /* ============================================================
+     * 批量执行页视觉（源自 6.html 设计稿）
+     * 全部使用 bx- 前缀做作用域隔离：
+     *   1. 不覆盖 core.js LAYOUT 的顶栏/侧栏
+     *   2. 避开全局 style.css 里带 !important 的 .page-header/.table/.modal 等
+     * ============================================================ */
+    .bx-root, .bx-root * { box-sizing: border-box; }
+    .bx-root h1, .bx-root h2, .bx-root p { margin: 0; }
+    .bx-root {
+      font-family: 'Inter', sans-serif;
+      color: #1e2d42;
+      line-height: 1.5;
+    }
+    .bx-wrap {
+      background: linear-gradient(145deg, #f4f7fc 0%, #e8f0f9 100%);
+      border-radius: 20px;
+      padding: 1.6rem 1.8rem;
+      min-height: calc(100vh - 120px);
+    }
+    .bx-container { width: 100%; max-width: 1400px; margin: 0 auto; }
+
+    /* ---- 页面标题 ---- */
+    .bx-header { margin-bottom: 1.6rem; }
+    .bx-header h1 {
+      font-size: 1.75rem; font-weight: 700; color: #0b2b44;
+      letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px;
+    }
+    .bx-header h1 i { color: #3c8ac7; font-size: 1.55rem; }
+    .bx-subtitle {
+      font-size: 0.88rem; color: #5e7a96; margin-top: 0.3rem;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* ---- 毛玻璃卡片 ---- */
+    .bx-card {
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      border-radius: 28px;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.02);
+      padding: 2rem 2.3rem;
+      margin-bottom: 1.6rem;
+      transition: box-shadow 0.25s ease;
+    }
+    .bx-card:hover { box-shadow: 0 25px 50px -15px rgba(0, 0, 0, 0.12), 0 6px 16px rgba(0, 0, 0, 0.03); }
+    .bx-card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; margin-bottom: 1.1rem;
+    }
+    .bx-card-title { font-size: 1.05rem; font-weight: 700; color: #0b2b44; display: flex; align-items: center; gap: 8px; }
+    .bx-card-title i { color: #3c8ac7; }
+    .bx-card-sub { font-size: 0.8rem; color: #7a8fa3; font-weight: 400; }
+
+    /* ---- 表单网格 ---- */
+    .bx-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.4rem 2rem; }
+    .bx-col-12 { grid-column: span 12; }
+    .bx-col-6 { grid-column: span 6; }
+    .bx-col-4 { grid-column: span 4; }
+    .bx-col-8 { grid-column: span 8; }
+    .bx-field { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
+    .bx-field > label {
+      font-weight: 600; font-size: 0.85rem; color: #1f3a4b;
+      letter-spacing: -0.01em; display: flex; align-items: center; gap: 6px;
+    }
+    .bx-field > label i { color: #7a8fa3; font-size: 0.8rem; opacity: 0.85; }
+    .bx-hint { font-weight: 400; font-size: 0.75rem; color: #7a8fa3; }
+    .bx-control {
+      width: 100%; padding: 0.7rem 1rem; border-radius: 14px;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      background: rgba(255, 255, 255, 0.7);
+      font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #1e2d42;
+      transition: all 0.2s ease; outline: none; backdrop-filter: blur(4px);
+    }
+    .bx-control::placeholder { color: #a0b5c9; font-size: 0.85rem; }
+    .bx-control:hover { background: rgba(255, 255, 255, 0.9); border-color: rgba(45, 106, 159, 0.2); }
+    .bx-control:focus { background: #fff; border-color: #2d6a9f; box-shadow: 0 0 0 4px rgba(45, 106, 159, 0.08); }
+    select.bx-control {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a8fa3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 1rem center;
+      background-size: 1rem; padding-right: 2.5rem;
+    }
+    textarea.bx-control { resize: vertical; min-height: 130px; line-height: 1.6; font-family: 'Inter', monospace; }
+    .bx-divider {
+      grid-column: span 12; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.06), transparent);
+      margin: 0.2rem 0;
+    }
+
+    /* ---- 按钮 ---- */
+    .bx-btn {
+      background: linear-gradient(135deg, #1d4e7a, #2d6a9f); border: 1px solid rgba(255,255,255,.2);
+      color: #fff; font-weight: 600; font-size: 0.93rem; padding: 0.85rem 2.2rem;
+      border-radius: 40px; cursor: pointer; transition: all .2s ease;
+      box-shadow: 0 8px 20px -6px rgba(29, 78, 122, 0.4);
+      display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+      font-family: 'Inter', sans-serif;
+    }
+    .bx-btn:hover:not(:disabled) { background: linear-gradient(135deg, #14405f, #23628f); box-shadow: 0 12px 24px -6px rgba(29,78,122,.5); transform: translateY(-1px); }
+    .bx-btn:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+    .bx-btn-ghost {
+      background: rgba(255,255,255,.7); border: 1px solid rgba(45,106,159,.25);
+      color: #2d6a9f; font-weight: 600; font-size: .86rem; padding: .6rem 1.2rem;
+      border-radius: 30px; cursor: pointer; font-family: 'Inter', sans-serif; transition: all .2s;
+    }
+    .bx-btn-ghost:hover { background: #fff; border-color: #2d6a9f; }
+    .bx-link { background: none; border: 0; color: #2d6a9f; font-size: .8rem; cursor: pointer; padding: 0; font-family: 'Inter', sans-serif; }
+    .bx-link:hover { text-decoration: underline; }
+    .bx-warn { font-size: 0.8rem; color: #e6a23c; display: flex; align-items: center; gap: 6px; }
+    .bx-form-foot { display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex-wrap: wrap; margin-top: 0.4rem; }
+
+    /* ---- 目标主机手风琴 ---- */
+    .bx-accordion { border: 1px solid rgba(0,0,0,.06); border-radius: 14px; background: rgba(255,255,255,.4); overflow: hidden; }
+    .bx-acc-head { display: flex; justify-content: space-between; align-items: center; padding: .75rem 1rem; cursor: pointer; transition: background .2s; gap: 10px; }
+    .bx-acc-head:hover { background: rgba(255,255,255,.6); }
+    .bx-acc-title { display: flex; align-items: center; gap: 8px; font-weight: 500; color: #1f3a4b; font-size: .9rem; }
+    .bx-acc-title i { color: #7a8fa3; }
+    .bx-acc-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .bx-badge { font-size: .75rem; background: rgba(45,106,159,.1); color: #2d6a9f; padding: .2rem .8rem; border-radius: 12px; font-weight: 600; }
+    .bx-acc-body { display: none; padding: 1rem; border-top: 1px solid rgba(0,0,0,.04); }
+    .bx-accordion.open .bx-acc-body { display: block; }
+    /* 主机抽屉筛选工具栏：搜索 + 云平台账号下拉（6.html 新增） */
+    .bx-toolbar { display: flex; gap: 12px; align-items: center; }
+    .bx-search { position: relative; flex: 1; min-width: 0; max-width: 320px; }
+    .bx-search > i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #a0b5c9; font-size: .82rem; pointer-events: none; }
+    .bx-search .bx-control { padding-left: 2.3rem; }
+    .bx-filter-account { width: 200px; flex-shrink: 0; }
+    .bx-hosts { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .8rem; max-height: 230px; overflow-y: auto; margin-top: .9rem; }
+    .bx-host { display: flex; align-items: center; gap: 10px; padding: .6rem .8rem; border: 1px solid rgba(0,0,0,.06); border-radius: 10px; background: rgba(255,255,255,.7); cursor: pointer; transition: all .2s; }
+    .bx-host:hover { border-color: rgba(45,106,159,.3); }
+    .bx-host.checked { background: rgba(45,106,159,.08); border-color: #2d6a9f; }
+    .bx-check { width: 16px; height: 16px; border: 1.5px solid #b6cbe0; border-radius: 4px; background: #fff; flex-shrink: 0; position: relative; transition: all .15s; }
+    .bx-host.checked .bx-check { background: linear-gradient(135deg, #1d4e7a, #2d6a9f); border-color: #1d4e7a; }
+    .bx-host.checked .bx-check::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+    .bx-host-info { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+    .bx-host-name { font-size: .85rem; color: #1e2d42; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bx-host-ip { font-size: .75rem; color: #7a8fa3; font-family: monospace; }
+    .bx-empty { text-align: center; padding: 1.8rem; color: #7a8fa3; font-size: .85rem; }
+
+    /* ---- 进度 / 结果卡片 ---- */
+    .bx-progress { height: 8px; background: rgba(45,106,159,.12); border-radius: 8px; overflow: hidden; margin: .4rem 0 1.1rem; }
+    .bx-progress > div { height: 100%; background: linear-gradient(90deg, #1d4e7a, #3c8ac7); border-radius: 8px; transition: width .3s; }
+    .bx-script-preview { margin-bottom: 1.1rem; }
+    .bx-code-light { background: rgba(30,37,51,.04); border: 1px solid rgba(0,0,0,.05); border-radius: 12px; padding: .8rem 1rem; margin-top: .4rem; font-family: ui-monospace, Consolas, monospace; font-size: .78rem; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow: auto; color: #33465e; }
+    .bx-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: .85rem; }
+    .bx-result { border: 1px solid rgba(0,0,0,.06); border-radius: 14px; background: rgba(255,255,255,.65); padding: .9rem 1rem; cursor: pointer; transition: all .2s; }
+    .bx-result:hover { border-color: #2d6a9f; transform: translateY(-1px); box-shadow: 0 8px 18px -10px rgba(29,78,122,.4); }
+    .bx-result-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .bx-result-name { font-weight: 600; font-size: .87rem; color: #1e2d42; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bx-result-meta { font-size: .75rem; color: #7a8fa3; font-family: monospace; margin-top: .35rem; }
+    .bx-result-foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: .6rem; font-size: .74rem; color: #5e7a96; }
+    .bx-status { font-size: .72rem; font-weight: 600; padding: .16rem .62rem; border-radius: 12px; white-space: nowrap; }
+    .bx-status.ok { background: rgba(24,160,88,.12); color: #18a058; }
+    .bx-status.fail { background: rgba(208,48,80,.12); color: #d03050; }
+    .bx-status.run { background: rgba(47,124,246,.12); color: #2f7cf6; }
+    .bx-status.mute { background: rgba(122,143,163,.15); color: #7a8fa3; }
+
+    /* ---- 历史 ---- */
+    .bx-history-item { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: .8rem 1rem; border: 1px solid rgba(0,0,0,.05); border-radius: 12px; background: rgba(255,255,255,.5); margin-bottom: .6rem; cursor: pointer; transition: all .2s; }
+    .bx-history-item:hover { border-color: rgba(45,106,159,.3); background: rgba(255,255,255,.8); }
+    .bx-hist-title { font-weight: 600; font-size: .87rem; color: #1e2d42; }
+    .bx-hist-meta { font-size: .76rem; color: #7a8fa3; margin-left: auto; }
+    .bx-hist-go { font-size: .76rem; color: #2d6a9f; }
+    .bx-pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 1rem; font-size: .8rem; color: #7a8fa3; }
+
+    /* ---- 弹窗（脱离全局 .modal） ---- */
+    .bx-overlay { position: fixed; inset: 0; background: rgba(15,35,55,.45); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 1rem; }
+    .bx-modal { width: 100%; max-width: 560px; max-height: 86vh; overflow: auto; background: #fff; border-radius: 24px; box-shadow: 0 30px 70px -20px rgba(0,0,0,.35); }
+    .bx-modal.wide { max-width: 860px; }
+    .bx-modal-head { padding: 1.15rem 1.6rem; border-bottom: 1px solid #eef2f7; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-weight: 700; color: #0b2b44; }
+    .bx-modal-body { padding: 1.3rem 1.6rem; }
+    .bx-modal-foot { padding: 0 1.6rem 1.4rem; display: flex; justify-content: flex-end; gap: 10px; }
+    .bx-close { background: none; border: 0; font-size: 1.5rem; line-height: 1; cursor: pointer; color: #7a8fa3; }
+    .bx-close:hover { color: #1e2d42; }
+    .bx-code { background: #1e2533; color: #dce4f2; border-radius: 12px; padding: 1rem; font-family: ui-monospace, Consolas, monospace; font-size: .79rem; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow: auto; margin: 0; }
+    .bx-code.empty { color: #7d8798; }
+    .bx-modal-label { font-weight: 600; font-size: .83rem; color: #1f3a4b; display: block; margin-bottom: .45rem; }
+
+    /* ---- 响应式 ---- */
+    @media (max-width: 1024px) {
+      .bx-card { padding: 1.6rem 1.4rem; }
+      .bx-grid { gap: 1.2rem 1.5rem; }
+      .bx-col-4 { grid-column: span 6; }
+    }
+    @media (max-width: 768px) {
+      .bx-wrap { padding: 1.2rem .9rem; }
+      .bx-grid { grid-template-columns: 1fr; }
+      .bx-col-12, .bx-col-6, .bx-col-4, .bx-col-8 { grid-column: span 1; }
+      .bx-btn { width: 100%; }
+      .bx-form-foot { justify-content: stretch; }
+      .bx-hist-meta { margin-left: 0; }
+      .bx-toolbar { flex-direction: column; align-items: stretch; }
+      .bx-search { max-width: none; }
+      .bx-filter-account { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="text/x-template" id="page-template">
+    <div class="bx-root">
+      <div class="bx-wrap">
+        <div class="bx-container">
+
+          <!-- 页面标题 -->
+          <div class="bx-header">
+            <h1><i class="fas fa-terminal"></i> 批量执行</h1>
+            <div class="bx-subtitle"><i class="fas fa-shield-alt"></i> 快速在多台服务器上执行 Shell 命令，支持批量并发，执行结果自动留痕。</div>
+          </div>
+
+          <!-- 主卡片：执行表单 -->
+          <div class="bx-card">
+            <div class="bx-grid">
+
+              <div class="bx-field bx-col-12">
+                <label><i class="fas fa-heading"></i> 任务标题 <span class="bx-hint">（留空则自动生成）</span></label>
+                <input type="text" class="bx-control" v-model="form.title" maxlength="200" placeholder="请输入任务标题">
+              </div>
+
+              <div class="bx-field bx-col-4">
+                <label><i class="fas fa-code"></i> 解释器</label>
+                <select class="bx-control" v-model="form.shell">
+                  <option v-for="s in options.shells" :key="s" :value="s">{{ s }}</option>
+                </select>
+              </div>
+              <div class="bx-field bx-col-4">
+                <label><i class="fas fa-network-wired"></i> 连接网络</label>
+                <select class="bx-control" v-model="form.network">
+                  <option value="public">公网 IP</option>
+                  <option value="eip">弹性 IP</option>
+                  <option value="private">私网 IP</option>
+                </select>
+              </div>
+              <div class="bx-field bx-col-4">
+                <label><i class="fas fa-layer-group"></i> 并发台数</label>
+                <input type="number" class="bx-control" min="1" :max="options.max_concurrency" v-model.number="form.concurrency">
+              </div>
+
+              <div class="bx-field bx-col-4">
+                <label><i class="fas fa-key"></i> SSH 凭证</label>
+                <select class="bx-control" v-model.number="form.credential_id">
+                  <option :value="0">自动选择（用户组授权的第一条）</option>
+                  <option v-for="c in credentials" :key="c.id" :value="c.id">{{ c.name }}（{{ c.username }}）</option>
+                </select>
+              </div>
+              <div class="bx-field bx-col-4">
+                <label><i class="fas fa-clock"></i> 单台超时（秒）</label>
+                <input type="number" class="bx-control" min="1" :max="options.max_timeout_sec" v-model.number="form.timeout_sec">
+              </div>
+              <div class="bx-field bx-col-4">
+                <label><i class="fas fa-server"></i> 资产概览</label>
+                <div class="bx-control" style="display:flex;align-items:center;gap:8px;background:rgba(45,106,159,.06);border-color:transparent">
+                  <i class="fas fa-circle-check" style="color:#2d6a9f"></i>
+                  已选 <b>{{ selectedIds.length }}</b> / 可用 {{ assets.length }} 台
+                </div>
+              </div>
+
+              <div class="bx-divider"></div>
+
+              <!-- 目标主机 -->
+              <div class="bx-field bx-col-12">
+                <label><i class="fas fa-server"></i> 目标主机</label>
+                <div class="bx-accordion" :class="{ open: hostsOpen }">
+                  <div class="bx-acc-head" @click="hostsOpen = !hostsOpen">
+                    <div class="bx-acc-title">
+                      <i class="fas" :class="hostsOpen ? 'fa-folder-open' : 'fa-folder'"></i> 点击展开 / 收起主机列表
+                    </div>
+                    <div class="bx-acc-right" @click.stop>
+                      <button class="bx-link" @click="selectAllFiltered">全选当前筛选</button>
+                      <button class="bx-link" @click="clearSelection">清空</button>
+                      <span class="bx-badge">已选 {{ selectedIds.length }} 台</span>
+                    </div>
+                  </div>
+                  <div class="bx-acc-body">
+                    <div class="bx-toolbar">
+                      <div class="bx-search">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="bx-control" v-model="assetKeyword" placeholder="搜索名称 / IP / 平台 / 账号" autocomplete="off">
+                      </div>
+                      <select class="bx-control bx-filter-account" v-model="accountFilter" title="按云平台账号筛选">
+                        <option value="">全部账号</option>
+                        <option v-for="o in accountOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+                      </select>
+                    </div>
+                    <div class="bx-hosts">
+                      <div class="bx-host" :class="{ checked: isSelected(a.id) }" v-for="a in filteredAssets" :key="a.id" @click="toggleHost(a.id)" :title="displayIp(a)">
+                        <div class="bx-check"></div>
+                        <div class="bx-host-info">
+                          <div class="bx-host-name">{{ a.instance_name || a.instance_id }}</div>
+                          <div class="bx-host-ip">{{ displayIp(a) }}:{{ a.ssh_port || 22 }}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-if="!assetsLoading && filteredAssets.length === 0" class="bx-empty">暂无匹配主机，请先在堡垒机资产中完成授权</div>
+                    <div v-if="assetsLoading" class="bx-empty">加载中...</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bx-divider"></div>
+
+              <!-- 脚本 -->
+              <div class="bx-field bx-col-12">
+                <label><i class="fas fa-file-code"></i> 命令或脚本 <span class="bx-hint">*</span></label>
+                <textarea class="bx-control" v-model="form.script" spellcheck="false" placeholder="请输入要执行的命令或脚本..."></textarea>
+                <span class="bx-hint">脚本内容经标准输入交给远端 <b>{{ form.shell }}</b> 执行，支持多行；上限 {{ options.max_script_bytes }} 字节，单台输出各保留 {{ options.max_output_bytes }} 字节。</span>
+              </div>
+
+              <div class="bx-col-12 bx-form-foot">
+                <div class="bx-warn"><i class="fas fa-triangle-exclamation"></i> 批量执行属于高危操作，脚本内容与结果都会留痕。</div>
+                <button class="bx-btn-ghost" v-if="activeTask && activeTask.status === 'running'" @click="cancelTask">停止当前任务</button>
+                <button class="bx-btn-ghost" @click="fetchAssets">刷新资产</button>
+                <button class="bx-btn" @click="confirmRun" :disabled="submitting || selectedIds.length === 0">
+                  <i class="fas fa-play"></i> {{ submitting ? '提交中...' : '开始执行' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 当前任务结果 -->
+          <div class="bx-card" v-if="activeTask">
+            <div class="bx-card-head">
+              <div class="bx-card-title"><i class="fas fa-list-check"></i> #{{ activeTask.id }} {{ activeTask.title }}</div>
+              <div class="bx-card-sub">
+                <span class="bx-status" :class="statusTone(activeTask.status)">{{ statusLabel(activeTask.status) }}</span>
+                成功 {{ activeTask.succeeded }} · 失败 {{ activeTask.failed }} · 共 {{ activeTask.total }} 台 · 由 {{ activeTask.created_name }} 发起
+              </div>
+            </div>
+            <div class="bx-progress"><div :style="{ width: progressPct + '%' }"></div></div>
+            <div class="bx-script-preview" v-if="activeTask.script">
+              <span class="bx-hint">执行内容（{{ activeTask.shell }} · {{ activeTask.network }} · 凭证 {{ activeTask.credential_name }}）</span>
+              <div class="bx-code-light">{{ activeTask.script }}</div>
+            </div>
+            <div class="bx-results" v-if="results.length">
+              <div class="bx-result" v-for="r in results" :key="r.id" @click="openResult(r)">
+                <div class="bx-result-top">
+                  <span class="bx-result-name">{{ r.asset_name || r.host }}</span>
+                  <span class="bx-status" :class="statusTone(r.status)">{{ statusLabel(r.status) }}</span>
+                </div>
+                <div class="bx-result-meta">{{ r.host }}:{{ r.port }}</div>
+                <div class="bx-result-foot">
+                  <span>退出码 {{ r.exit_code === null || r.exit_code === undefined ? '-' : r.exit_code }}</span>
+                  <span>耗时 {{ formatDuration(r.duration_ms) }}</span>
+                  <span style="color:#2d6a9f">查看输出 →</span>
+                </div>
+              </div>
+            </div>
+            <div class="bx-empty" v-else>暂无结果</div>
+          </div>
+
+          <!-- 历史 -->
+          <div class="bx-card">
+            <div class="bx-card-head">
+              <div class="bx-card-title"><i class="fas fa-clock-rotate-left"></i> 执行历史</div>
+              <div class="bx-card-sub">共 {{ historyTotal }} 条 · 点击查看每台结果</div>
+            </div>
+            <div v-if="historyLoading" class="bx-empty">加载中...</div>
+            <div v-else-if="history.length === 0" class="bx-empty">暂无执行记录</div>
+            <div class="bx-history-item" v-for="t in history" :key="t.id" @click="openHistory(t)">
+              <span class="bx-status" :class="statusTone(t.status)">{{ statusLabel(t.status) }}</span>
+              <span class="bx-hist-title">#{{ t.id }} {{ t.title }}</span>
+              <span class="bx-hist-meta">{{ t.succeeded }}/{{ t.total }} 成功 · {{ t.created_name }} · {{ t.shell }} · {{ formatDateTime(t.started_at) }}</span>
+              <span class="bx-hist-go">详情 →</span>
+            </div>
+            <div class="bx-pager">
+              <span>第 {{ historyPage }} / {{ historyTotalPages }} 页</span>
+              <button class="bx-btn-ghost" :disabled="historyPage <= 1" @click="goHistoryPage(historyPage - 1)">上一页</button>
+              <button class="bx-btn-ghost" :disabled="historyPage >= historyTotalPages" @click="goHistoryPage(historyPage + 1)">下一页</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 执行确认 -->
+      <div class="bx-overlay" v-if="confirmVisible" @click.self="confirmVisible = false">
+        <div class="bx-modal">
+          <div class="bx-modal-head"><span>确认批量执行</span><button class="bx-close" @click="confirmVisible = false">&times;</button></div>
+          <div class="bx-modal-body">
+            <span class="bx-modal-label">即将在 <span style="color:#d03050">{{ selectedIds.length }}</span> 台主机上执行以下内容（{{ form.shell }}）</span>
+            <pre class="bx-code">{{ form.script }}</pre>
+            <div class="bx-hint" style="margin-top:10px">并发 {{ form.concurrency }} 台，单台超时 {{ form.timeout_sec }} 秒。请确认脚本无误，误操作会同时影响所有选中主机。</div>
+          </div>
+          <div class="bx-modal-foot">
+            <button class="bx-btn-ghost" @click="confirmVisible = false">取消</button>
+            <button class="bx-btn" @click="doRun" :disabled="submitting">{{ submitting ? '提交中...' : '确认执行' }}</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 单台输出 -->
+      <div class="bx-overlay" v-if="detailVisible" @click.self="detailVisible = false">
+        <div class="bx-modal wide">
+          <div class="bx-modal-head">
+            <span>{{ detailResult.asset_name || detailResult.host }} · {{ statusLabel(detailResult.status) }}</span>
+            <button class="bx-close" @click="detailVisible = false">&times;</button>
+          </div>
+          <div class="bx-modal-body">
+            <div class="bx-hint" style="margin-bottom:10px">
+              {{ detailResult.host }}:{{ detailResult.port }} · 退出码 {{ detailResult.exit_code === null || detailResult.exit_code === undefined ? '-' : detailResult.exit_code }} · 耗时 {{ formatDuration(detailResult.duration_ms) }}
+              <span v-if="detailResult.err_msg" style="color:#d03050"> · {{ detailResult.err_msg }}</span>
+            </div>
+            <label class="bx-modal-label">标准输出 stdout</label>
+            <pre class="bx-code" :class="{ empty: !detailResult.stdout }">{{ detailResult.stdout || '（无输出）' }}</pre>
+            <label class="bx-modal-label" style="margin-top:12px">标准错误 stderr</label>
+            <pre class="bx-code" :class="{ empty: !detailResult.stderr }">{{ detailResult.stderr || '（无输出）' }}</pre>
+          </div>
+          <div class="bx-modal-foot">
+            <button class="bx-btn-ghost" @click="copyOutput">复制输出</button>
+            <button class="bx-btn" @click="detailVisible = false">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </script>
+
+  <script src="/assets/js/core.js?v=20261109f"></script>
+  <script src="/assets/js/pages/batch-exec.js?v=20261108j"></script>
+</body>
+</html>

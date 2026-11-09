@@ -1,0 +1,25 @@
+# 云管平台后端 systemd 单元
+# 部署：sudo cp deploy/cloud-manager.service /etc/systemd/system/
+#       sudo systemctl daemon-reload && sudo systemctl enable --now cloud-manager
+#
+# WorkingDirectory 必须是后端目录：viper 会从当前工作目录读取 config.yaml，
+# 且 frontend.dir 的相对路径（默认 ../cloud-manager-front）也以此为基准。
+# /opt/cloud-manager/ 对应仓库的 cloud-manager/ 项目目录，两个仓库保持同级。
+
+[Unit]
+Description=Cloud Manager
+After=network.target mysql.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/cloud-manager/cloud-manager-backend
+ExecStart=/opt/cloud-manager/cloud-manager-backend/devops
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+# 生产环境务必设置 32 字节随机密钥；未设置时回退内置公开密钥（仅兼容历史数据）
+# 生成命令：openssl rand -base64 24（输出正好 32 字符）
+Environment=AES_SECRET_KEY=CHANGE_ME_TO_RANDOM_32_BYTE_KEY!
+
+[Install]
+WantedBy=multi-user.target

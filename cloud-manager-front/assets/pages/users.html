@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>用户管理 - 云管平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
+  <script src="/assets/js/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- 本页模板：只含用户管理自己的内容与弹窗；顶栏/抽屉/搜索由 core.js 提供 -->
+  <script type="text/x-template" id="page-template">
+    <div class="page-header">
+      <h2>用户管理</h2>
+      <button class="btn btn-primary btn-sm" @click="openUserModal()">新增用户</button>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-row">
+        <input type="text" class="input" placeholder="搜索用户名 / 邮箱..." v-model="userFilters.keyword" @keyup.enter="userSearch" />
+        <button class="btn btn-primary" @click="userSearch">查询</button>
+        <button class="btn btn-default" @click="userResetFilters">重置</button>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="table table-fixed user-table">
+        <thead>
+          <tr>
+            <th>用户名</th>
+            <th>真实姓名</th>
+            <th>邮箱</th>
+            <th>角色</th>
+            <th>状态</th>
+            <th>创建时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="userLoading"><td colspan="7" class="text-center py-40">加载中...</td></tr>
+          <tr v-else-if="userList.length === 0"><td colspan="7" class="text-center py-40 text-gray">暂无数据</td></tr>
+          <tr v-for="item in userList" :key="item.id">
+            <td>{{ item.username }}</td>
+            <td>{{ item.real_name || '-' }}</td>
+            <td>{{ item.email }}</td>
+            <td><span :class="userRoleClass(item.role)">{{ userRoleText(item.role) }}</span></td>
+            <td>
+              <span v-if="item.locked" class="tag tag-danger">已锁定</span>
+              <span v-else class="tag tag-success">正常</span>
+            </td>
+            <td class="text-sm">{{ formatDate(item.add_time) }}</td>
+            <td>
+              <button class="btn btn-text btn-sm" @click="openUserModal(item)">编辑</button>
+              <button v-if="item.locked" class="btn btn-text btn-sm" style="color:#fb8c00" @click="unlockUser(item)">解锁</button>
+              <button class="btn btn-text btn-sm" style="color:#ea4335" @click="deleteUser(item)">删除</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <span class="page-info">共 {{ userTotal }} 条</span>
+      <div class="page-btns">
+        <button class="btn btn-default btn-sm" :disabled="userPage <= 1" @click="userGoPage(1)">首页</button>
+        <button class="btn btn-default btn-sm" :disabled="userPage <= 1" @click="userGoPage(userPage - 1)">上一页</button>
+        <span class="page-jump">
+          第 <input type="number" class="input input-page" v-model.number="userPageInput" @keyup.enter="userJumpPage" min="1" :max="userTotalPages" /> / {{ userTotalPages }} 页
+        </span>
+        <button class="btn btn-default btn-sm" :disabled="userPage >= userTotalPages" @click="userGoPage(userPage + 1)">下一页</button>
+        <button class="btn btn-default btn-sm" :disabled="userPage >= userTotalPages" @click="userGoPage(userTotalPages)">末页</button>
+      </div>
+      <div class="page-size">
+        每页
+        <select class="select select-sm" v-model.number="userSize" @change="userOnSizeChange">
+          <option :value="10">10</option>
+          <option :value="20">20</option>
+          <option :value="50">50</option>
+          <option :value="100">100</option>
+        </select>
+        条
+      </div>
+    </div>
+
+    <!-- 弹窗挂到 body，避免被 .main-content 的滚动容器影响 -->
+    <Teleport to="body">
+      <div class="modal-overlay" v-if="userModalVisible">
+        <div class="modal">
+          <div class="modal-header">
+            <h2>{{ userEditing ? '编辑用户' : '新增用户' }}</h2>
+            <button class="btn-close" @click="userModalVisible = false">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-vertical">
+              <div class="form-group">
+                <label>用户名 <span class="text-danger">*</span></label>
+                <input type="text" class="input input-full" v-model="userForm.username" placeholder="请输入用户名" />
+              </div>
+              <div class="form-group">
+                <label>密码 <span v-if="!userEditing" class="text-danger">*</span><span v-else class="text-gray" style="font-weight:400">（留空则不修改）</span></label>
+                <input type="password" class="input input-full" v-model="userForm.password" placeholder="请输入密码" />
+              </div>
+              <div class="form-group">
+                <label>邮箱</label>
+                <input type="email" class="input input-full" v-model="userForm.email" placeholder="请输入邮箱" />
+              </div>
+              <div class="form-group">
+                <label>真实姓名 <span class="text-gray" style="font-weight:400">（选填）</span></label>
+                <input type="text" class="input input-full" v-model="userForm.real_name" placeholder="请输入真实姓名" />
+              </div>
+              <div class="form-group">
+                <label>角色</label>
+                <div class="cust-sel" style="width:100%">
+                  <div class="cust-sel-trigger" @click.stop="userRoleDrpOpen=!userRoleDrpOpen" style="width:100%;justify-content:space-between">
+                    {{ userForm.role==='admin'?'管理员':(userForm.role==='readonly'?'只读用户':'普通用户') }} <span class="cust-sel-arrow">▼</span>
+                  </div>
+                  <div class="cust-sel-drop" :class="{ open: userRoleDrpOpen }" @wheel.stop style="width:100%">
+                    <div class="cust-sel-item" :class="{sel:userForm.role==='user'}" @click.stop="userForm.role='user';userRoleDrpOpen=false">👤 普通用户</div>
+                    <div class="cust-sel-item" :class="{sel:userForm.role==='admin'}" @click.stop="userForm.role='admin';userRoleDrpOpen=false">🔧 管理员</div>
+                    <div class="cust-sel-item" :class="{sel:userForm.role==='readonly'}" @click.stop="userForm.role='readonly';userRoleDrpOpen=false">👁 只读用户</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+              <button class="btn btn-default" @click="userModalVisible = false">取消</button>
+              <button class="btn btn-primary" @click="saveUser" :disabled="userSaving">{{ userSaving ? '保存中...' : '保存' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+  </script>
+
+  <script src="/assets/js/core.js?v=20261109f"></script>
+  <script src="/assets/js/pages/users.js?v=20261108i"></script>
+</body>
+</html>

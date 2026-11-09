@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>堡垒机终端</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔐</text></svg>"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5/css/xterm.css"/>
+<script src="/assets/js/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8/lib/xterm-addon-fit.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/spark-md5@3.0.2/spark-md5.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden;background:#1e1e1e}
+#app{display:flex;height:100vh;width:100vw}
+.hp{width:0;background:#1e1e2e;color:#ccc;display:flex;flex-direction:column;border-right:1px solid transparent;flex-shrink:0;overflow:hidden;transition:width .2s}
+.hp.open{width:260px;border-right-color:#333}
+.hp-title{padding:12px 16px;font-size:15px;font-weight:600;color:#fff;border-bottom:1px solid #333;display:flex;align-items:center;gap:8px}
+.hp-search{padding:8px 12px;border-bottom:1px solid #333}
+.hp-search input{width:100%;padding:6px 10px;border-radius:4px;border:1px solid #555;background:#2a2a3c;color:#ccc;font-size:13px;outline:none}
+.hp-search input:focus{border-color:#4285f4}
+.hp-list{flex:1;overflow-y:auto;padding:4px 0}
+.hp-group{margin-bottom:4px}
+.hp-group-title{padding:8px 16px;font-size:12px;color:#888;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;user-select:none}
+.hp-group-arrow{font-size:10px;transition:transform .2s;display:inline-block}
+.hp-group-arrow.open{transform:rotate(90deg)}
+.hp-item{display:flex;align-items:center;gap:8px;padding:8px 16px 8px 24px;cursor:pointer;font-size:13px;transition:background .1s}
+.hp-item:hover{background:#2a2a3c}
+.hp-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.hp-dot.gray{background:#666}.hp-dot.green{background:#34a853}.hp-dot.red{background:#ea4335}
+.hp-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hp-ip{font-size:11px;color:#888;white-space:nowrap}
+.hp-loading{padding:20px;text-align:center;color:#888;font-size:13px}
+.ta{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.tb-bar{display:flex;background:#252526;border-bottom:1px solid #333;flex-shrink:0;overflow-x:auto;min-height:32px}
+.tb-tab{display:flex;align-items:center;gap:4px;padding:5px 10px;font-size:12px;color:#999;cursor:pointer;border-right:1px solid #333;white-space:nowrap;flex-shrink:0}
+.tb-tab.active{background:#1e1e1e;color:#fff;border-bottom:2px solid #4285f4}
+.tb-tab .tb-close{font-size:14px;line-height:1;opacity:.5;cursor:pointer;padding:0 2px}
+.tb-tab .tb-close:hover{opacity:1;color:#ea4335}
+.tb-tab .tb-dot{width:6px;height:6px;border-radius:50%}
+.tb-dot.connecting{background:#f9ab00}.tb-dot.connected{background:#34a853}.tb-dot.disconnected{background:#ea4335}
+.th{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#2d2d2d;border-bottom:1px solid #444;color:#ccc;font-size:13px;flex-shrink:0}
+.th-l{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden}
+.th-r{display:flex;gap:8px;flex-shrink:0;position:relative}
+.term-tools{position:absolute;top:100%;right:0;margin-top:10px;background:#2d2d2d;border:1px solid #555;border-radius:10px;min-width:210px;padding:10px 12px;z-index:120;box-shadow:0 8px 24px rgba(0,0,0,.45);transform-origin:top right;opacity:0;transform:scaleY(.92) translateY(-4px);pointer-events:none;transition:opacity .18s,transform .2s cubic-bezier(.34,1.56,.64,1)}
+.term-tools.open{opacity:1;transform:scaleY(1) translateY(0);pointer-events:auto}
+.tt-sec{padding:6px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.tt-sec:last-child{border-bottom:none}
+.tt-title{font-size:11px;color:#8a8a9a;letter-spacing:.5px;margin-bottom:6px;text-transform:uppercase}
+.tt-row{display:flex;gap:6px}
+.tt-row button{flex:1;background:#3a3a4a;color:#e3e3e3;border:none;border-radius:6px;padding:6px 4px;font-size:13px;cursor:pointer;transition:background .12s}
+.tt-row button:hover{background:#4a4a5a}
+.tt-keys{list-style:none;margin:0;padding:0;font-size:12px;color:#cfcfcf;line-height:1.9}
+.tt-keys li{display:flex;align-items:center;gap:6px}
+.tt-k{flex-shrink:0;background:#1f1f2a;color:#9ecbff;border:1px solid #3a3a4a;border-radius:4px;padding:1px 6px;font-size:11px;font-family:Menlo,Consolas,monospace}
+.th select{background:#333;color:#ccc;border:1px solid #555;border-radius:4px;padding:2px 6px;font-size:12px}
+.th button{background:#444;color:#ccc;border:1px solid #555;border-radius:4px;padding:3px 8px;font-size:12px;cursor:pointer;white-space:nowrap}
+.th button:hover{background:#555}
+.tb{flex:1;display:flex;min-height:0;overflow:hidden}
+.tty-area{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;padding:4px 4px 10px 4px}
+.tty{flex:1;min-width:0;overflow:hidden;display:none}
+.tty.active{display:block}
+.fd{width:0;background:#252526;border-left:1px solid transparent;overflow:hidden;transition:width .2s;flex-shrink:0;display:flex;flex-direction:column}
+.fd.open{border-left-color:#444}
+.fd-inner{min-width:280px;flex:1;display:flex;flex-direction:column;padding:10px;min-height:0}
+.fd-bar{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-shrink:0}
+.up-panel{background:#1a1a2e;border:1px solid #333;border-radius:6px;padding:8px 10px;margin-bottom:10px;flex-shrink:0;max-height:40%;display:flex;flex-direction:column}
+.up-head{display:flex;align-items:center;justify-content:space-between;color:#aaa;font-size:12px;margin-bottom:6px;flex-shrink:0}
+.up-clear{background:#444;color:#ccc;border:1px solid #555;border-radius:4px;padding:1px 8px;font-size:11px;cursor:pointer}
+.up-clear:hover{background:#555}
+.up-conc{display:flex;align-items:center;gap:4px;color:#aaa;font-size:12px}
+.up-conc-sel{background:#1a1a2e;color:#ccc;border:1px solid #555;border-radius:4px;padding:1px 4px;font-size:12px;cursor:pointer}
+.up-list{overflow-y:auto;min-height:0}
+.up-item{padding:6px 0;border-top:1px solid rgba(255,255,255,.06)}
+.up-item:first-child{border-top:none}
+.up-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.up-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ccc;font-size:12px}
+.up-pct{color:#aaa;font-size:11px;flex-shrink:0}
+.up-cancel{flex-shrink:0;background:#ea4335;color:#fff;border:none;border-radius:4px;padding:1px 7px;font-size:12px;cursor:pointer}
+.up-cancel:hover{background:#c5221f}
+.up-cancel.up-rm{background:#555}
+.up-cancel.up-rm:hover{background:#666}
+.up-bar{height:6px;background:#333;border-radius:3px;overflow:hidden}
+.up-fill{height:100%;background:#4285f4;border-radius:3px;transition:width .15s}
+.up-sub{margin-top:4px;color:#888;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.up-item.st-done .up-fill{background:#34a853}
+.up-item.st-skipped .up-fill{background:#9aa0a6}
+.up-item.st-error .up-fill{background:#ea4335}
+.up-item.st-canceled .up-fill{background:#9aa0a6}
+.up-item.st-error .up-sub{color:#ea8680}
+.up-item.st-done .up-sub{color:#7bc99a}
+.up-item.st-paused .up-fill{background:#f9ab00}
+.up-item.st-paused .up-sub{color:#f9c74f}
+.up-pause{flex-shrink:0;background:#f9ab00;color:#1a1a2e;border:none;border-radius:4px;padding:1px 7px;font-size:12px;cursor:pointer}
+.up-pause:hover{background:#e09600}
+.up-pause.up-resume{background:#34a853;color:#fff}
+.up-pause.up-resume:hover{background:#2b8a45}
+.fd-bar input{flex:1;min-width:0;background:#1a1a2e;color:#ccc;border:1px solid #555;padding:3px 6px;font-size:12px;font-family:Consolas,monospace;border-radius:4px}
+.fd-list{flex:1;overflow-y:auto;min-height:0}
+.fd-row{position:relative;display:flex;align-items:center;gap:6px;padding:5px 8px;cursor:pointer;color:#ccc;font-size:13px;border-radius:4px}
+.fd-row:hover{background:#2a2d2e}.fd-row.sel{background:#094771;color:#fff}
+.fd-del{display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:13px;opacity:.7;padding:2px 4px;border-radius:4px}
+.fd-del:hover{opacity:1;background:rgba(234,67,53,.18)}
+.fd-row:hover .fd-del{display:inline-block}
+.fd-act{flex-shrink:0;padding-top:8px;border-top:1px solid #444;display:flex;gap:6px}
+.fh{width:4px;cursor:col-resize;background:#555;flex-shrink:0}.fh:hover{background:#4285f4}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center;z-index:999}
+.modal-overlay.animated{opacity:0;visibility:hidden;transition:opacity .2s ease,visibility .2s ease}
+.modal-overlay.animated.open{opacity:1;visibility:visible}
+.modal-box{background:#2d2d2d;border-radius:10px;padding:28px;width:680px;color:#ccc;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal-overlay.animated .modal-box{transform:scale(.92) translateY(12px);opacity:0;transition:transform .25s cubic-bezier(.34,1.56,.64,1),opacity .25s ease;will-change:transform,opacity}
+.modal-overlay.animated.open .modal-box{transform:scale(1) translateY(0);opacity:1}
+.modal-box h3{margin-bottom:16px;color:#fff}
+.ip-card{display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid #555;border-radius:6px;cursor:pointer;margin-bottom:6px}
+.ip-card.active{border-color:#4285f4;background:rgba(66,133,244,.1)}
+.ip-card input{display:none}
+.ip-tag{padding:2px 8px;border-radius:3px;font-size:11px;color:#fff}
+.ip-tag.pub{background:#4285f4}.ip-tag.pri{background:#34a853}
+/* 自定义下拉（目录模式 — 无闪烁展开） */
+.cust-sel{position:relative;display:inline-block;cursor:pointer;user-select:none}
+.cust-sel-trigger{background:#333;color:#ccc;border:1px solid #555;border-radius:4px;padding:2px 10px;font-size:12px;display:flex;align-items:center;gap:4px;white-space:nowrap;min-width:60px;transition:border-color .2s}
+.cust-sel-trigger:hover{background:#3a3a3a;border-color:#666}
+.cust-sel-arrow{display:inline-block;font-size:10px;transition:transform .3s cubic-bezier(.34,1.56,.64,1);flex-shrink:0}
+.cust-sel:has(.cust-sel-drop.open) .cust-sel-arrow{transform:rotate(180deg)}
+.cust-sel:has(.cust-sel-drop.open) .cust-sel-trigger{border-color:#4285f4}
+.cust-sel-drop{position:absolute;top:100%;left:0;margin-top:8px;background:#2d2d2d;border:1px solid #555;border-radius:8px;min-width:100%;max-height:0;overflow:hidden;opacity:0;pointer-events:none;transform:scaleY(.92) translateY(-4px);transform-origin:top center;transition:max-height .35s cubic-bezier(.34,1.56,.64,1),opacity .2s,transform .25s cubic-bezier(.34,1.56,.64,1);z-index:110;box-shadow:0 6px 20px rgba(0,0,0,.4);will-change:transform,opacity,max-height}
+.cust-sel-drop.open{max-height:360px;overflow-y:auto;opacity:1;pointer-events:all;transform:scaleY(1) translateY(0)}
+.cust-sel-item{padding:6px 12px;font-size:12px;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);transition:background .12s,padding-left .18s}
+.cust-sel-item:last-child{border-bottom:none}
+.cust-sel-item:hover{background:#3a3a4a;padding-left:16px}
+.cust-sel-item.sel{background:#094771;color:#fff;padding-left:20px}
+.cust-sel-item.sel::before{content:"✓ ";font-weight:600;color:#4fc3f7}
+.cust-sel-empty{padding:10px 12px;font-size:12px;color:#888;text-align:center;border-bottom:none}
+.cust-sel-drop::-webkit-scrollbar{width:4px}
+.cust-sel-drop::-webkit-scrollbar-track{background:transparent}
+.cust-sel-drop::-webkit-scrollbar-thumb{background:#555;border-radius:4px}
+.drp-backdrop{position:fixed;inset:0;z-index:105}
+.tab-menu{position:fixed;z-index:130;min-width:160px;background:#2d2d2d;border:1px solid #555;border-radius:8px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.tab-menu-item{padding:7px 12px;border-radius:5px;font-size:13px;color:#e3e3e3;cursor:pointer;white-space:nowrap}
+.tab-menu-item:hover{background:#3a3a4a}
+.tab-menu-item.danger{color:#ff8a8a}
+.tab-menu-item.danger:hover{background:#4a2a2a}
+.tab-menu-sep{height:1px;background:rgba(255,255,255,.08);margin:4px 0}
+.tb-name{cursor:default}
+.tb-rename-input{width:auto;min-width:60px;max-width:280px;field-sizing:content;box-sizing:border-box;background:#1e1e1e;color:#4ec9b0;border:1px solid #4285f4;border-radius:4px;padding:1px 4px;font-size:13px;outline:none}
+/* 弹窗内下拉 */
+.modal-box .cust-sel-trigger{background:#444;border-color:#666;font-size:13px;padding:8px 12px;border-radius:8px}
+.modal-box .cust-sel-drop{background:#333;border-color:#666}
+.modal-box .cust-sel-drop.open{max-height:260px}
+.modal-box .cust-sel-item{border-bottom-color:rgba(255,255,255,.08)}
+.modal-box .cust-sel-drop::-webkit-scrollbar-thumb{background:#666}
+
+/* ===== 堡垒机连接弹窗（目录式下拉 · 暗色主题） ===== */
+.bastion-conn{background:#1e1e2e;border-radius:24px;padding:32px 36px 28px;width:680px;max-width:94vw;color:#cbd5e1;box-shadow:0 20px 60px rgba(0,0,0,.5);border:1px solid #2a2a3c}
+.bastion-conn h3{font-size:20px;font-weight:600;color:#e2e8f0;margin-bottom:6px}
+.bastion-conn .sub-line{font-size:13px;color:#94a3b8;margin-bottom:20px;padding:10px 15px;border-left:3px solid #3b82f6;background:rgba(59,130,246,.06);border-radius:0 8px 8px 0;display:flex;align-items:center;gap:8px}
+.bastion-conn .sub-badge{display:inline-block;background:rgba(59,130,246,.15);color:#60a5fa;font-size:12px;font-weight:500;padding:2px 12px;border-radius:20px}
+
+/* 目标主机卡片 */
+.bastion-conn-host{background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.12);border-left:4px solid #3b82f6;border-radius:14px;padding:18px 22px;margin-bottom:24px}
+.bastion-conn-host .h-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.bastion-conn-host .h-name{font-size:17px;font-weight:600;color:#e2e8f0;font-family:'SF Mono','Consolas',monospace}
+
+/* 分区标签 */
+.bastion-conn .sec-label{display:block;font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:10px}
+
+/* IP 卡片 */
+.bastion-conn-ip{display:flex;align-items:center;gap:12px;padding:13px 18px;border:2px solid #3a3a4a;border-radius:14px;cursor:pointer;transition:border-color .2s,background .2s,transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .25s;user-select:none;margin-bottom:8px}
+.bastion-conn-ip:last-child{margin-bottom:0}
+.bastion-conn-ip:hover{border-color:#5a5a6a;transform:scale(1.01)}
+.bastion-conn-ip.active{border-color:#4285f4;background:rgba(66,133,244,.08);box-shadow:0 4px 20px rgba(66,133,244,.15)}
+.bastion-conn-ip input{-webkit-appearance:none;appearance:none;display:inline-block;width:18px;height:18px;margin:0;flex-shrink:0;border:2px solid #5a5a6a;border-radius:50%;background:transparent;cursor:pointer;transition:border-color .2s,background .2s}
+.bastion-conn-ip input:checked{border-color:#4285f4;background:radial-gradient(circle,#4285f4 0 45%,transparent 46%)}
+.bastion-conn-ip.active input{border-color:#4285f4}
+.bastion-conn-ip-tag{padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;color:#fff;flex-shrink:0}
+.bastion-conn-ip-tag.pub{background:#4285f4}
+.bastion-conn-ip-tag.pri{background:#34a853}
+.bastion-conn-ip-addr{font-family:'SF Mono','Consolas',monospace;font-size:14px;color:#cbd5e1}
+
+/* 目录式凭证下拉（弹窗内） */
+.bastion-conn-sel{position:relative;width:100%;user-select:none}
+.bastion-conn-sel-trigger{width:100%;height:48px;padding:0 44px 0 16px;font-size:14px;font-weight:500;color:#cbd5e1;background:#252536;border:2px solid #3a3a4a;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:border-color .2s,box-shadow .3s,transform .3s cubic-bezier(.34,1.56,.64,1)}
+.bastion-conn-sel-trigger:hover{border-color:#5a5a6a}
+.bastion-conn-sel.active .bastion-conn-sel-trigger{border-color:#4285f4;transform:scale(1.015) translateY(-1px);box-shadow:0 4px 20px rgba(66,133,244,.15)}
+.bastion-conn-sel-arrow{display:inline-block;font-size:11px;transition:transform .3s cubic-bezier(.34,1.56,.64,1);flex-shrink:0;opacity:.5}
+.bastion-conn-sel.active .bastion-conn-sel-arrow{transform:rotate(180deg);opacity:.8}
+
+.bastion-conn-sel-drop{position:absolute;top:calc(100% + 12px);left:0;width:100%;background:#252536;border:2px solid #3a3a4a;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.5);max-height:0;overflow:hidden;opacity:0;transform:scale(.92) translateY(-8px);transform-origin:top center;transition:max-height .35s cubic-bezier(.34,1.56,.64,1),opacity .2s,transform .3s cubic-bezier(.34,1.56,.64,1);z-index:200;pointer-events:none}
+.bastion-conn-sel-drop.open{max-height:260px;opacity:1;pointer-events:all;transform:scale(1) translateY(0);overflow-y:auto}
+.bastion-conn-sel-drop::-webkit-scrollbar{width:4px}
+.bastion-conn-sel-drop::-webkit-scrollbar-track{background:transparent}
+.bastion-conn-sel-drop::-webkit-scrollbar-thumb{background:#555;border-radius:4px}
+
+.bastion-conn-sel-item{padding:11px 16px;font-size:13px;color:#cbd5e1;cursor:pointer;transition:background .12s,padding-left .18s;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;gap:6px}
+.bastion-conn-sel-item:last-child{border-bottom:none}
+.bastion-conn-sel-item:hover{background:rgba(255,255,255,.05);padding-left:22px}
+.bastion-conn-sel-item.sel{background:rgba(66,133,244,.12);color:#fff;font-weight:500}
+.bastion-conn-sel-item.sel::before{content:"✓";font-weight:600;color:#4285f4}
+.bastion-conn-sel-empty{padding:14px 16px;font-size:13px;color:#888;text-align:center}
+
+/* 操作按钮 */
+.bastion-conn-actions{display:flex;gap:12px;justify-content:flex-end;margin-top:28px;padding-top:20px;border-top:1px solid #2a2a3c}
+.bastion-conn-btn{padding:9px 26px;border-radius:50px;font-size:14px;font-weight:500;cursor:pointer;border:none;transition:all .2s}
+.bastion-conn-btn:hover{transform:scale(.97)}
+.bastion-conn-btn-cancel{background:#3a3a4a;color:#94a3b8}
+.bastion-conn-btn-cancel:hover{background:#4a4a5a}
+.bastion-conn-btn-primary{background:#4285f4;color:#fff}
+.bastion-conn-btn-primary:hover:not(:disabled){background:#1a56db}
+.bastion-conn-btn-primary:disabled{opacity:.5;cursor:not-allowed}
+
+/* ===== 登录失效遮罩 ===== */
+.expired-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);display:flex;justify-content:center;align-items:center;backdrop-filter:blur(4px)}
+.expired-card{background:#252536;border:1px solid #3a3a4a;border-radius:16px;padding:36px 40px;text-align:center;max-width:400px;width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.5);animation:fadeInUp .3s ease}
+.expired-card h2{color:#f1f5f9;font-size:20px;margin:0 0 10px}
+.expired-card p{color:#94a3b8;font-size:14px;margin:0 0 24px;line-height:1.6}
+.expired-actions{display:flex;flex-direction:column;gap:10px}
+.expired-btn{display:block;width:100%;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+.expired-btn-primary{background:#4285f4;color:#fff}
+.expired-btn-primary:hover{background:#1a56db}
+.expired-btn-secondary{background:#3a3a4a;color:#cbd5e1}
+.expired-btn-secondary:hover{background:#4a4a5a}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== 4.html 自定义 Select 规范（深色适配） ===== */
+.cust-sel-trigger{height:36px;padding:0 12px;background:#252536;border:1px solid #3a3a4a;border-radius:6px;font-size:13px;color:#e2e8f0;transition:border-color .2s,box-shadow .2s}
+.cust-sel-trigger:hover{border-color:#4285f4}
+.cust-sel:has(.cust-sel-drop.open) .cust-sel-trigger{border-color:#4285f4;box-shadow:0 0 0 3px rgba(66,133,244,.15)}
+.cust-sel-arrow{color:#9ca3af}
+.cust-sel-drop{top:calc(100% + 10px);margin-top:0;background:#252536;border:1px solid #3a3a4a;border-radius:8px;padding:6px;box-shadow:0 10px 30px -10px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3)}
+.cust-sel-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;margin:0 0 2px;border:0;border-radius:6px;font-size:13px;color:#cbd5e1;transition:background .15s,color .15s}
+.cust-sel-item:hover{background:#2f3042;color:#60a5fa;padding-left:12px}
+.cust-sel-item.sel{background:rgba(66,133,244,.16);color:#60a5fa;font-weight:600;padding-left:12px}
+.cust-sel-item.sel::before{display:none}
+.cust-sel-item.sel::after{content:'✓';color:#60a5fa;font-weight:600}
+.cust-sel-drop::-webkit-scrollbar-thumb{background:#4a4b5e}
+/* 弹窗内凭证下拉 */
+.bastion-conn-sel-trigger{height:36px;padding:0 16px;background:#252536;border:1px solid #3a3a4a;border-radius:6px;font-size:13px;color:#e2e8f0;transform:none;transition:border-color .2s,box-shadow .2s}
+.bastion-conn-sel-trigger:hover{border-color:#4285f4}
+.bastion-conn-sel.active .bastion-conn-sel-trigger{border-color:#4285f4;box-shadow:0 0 0 3px rgba(66,133,244,.15);transform:none}
+.bastion-conn-sel-arrow{color:#9ca3af}
+.bastion-conn-sel-drop{top:calc(100% + 10px);background:#252536;border:1px solid #3a3a4a;border-radius:8px;padding:6px;box-shadow:0 10px 30px -10px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3)}
+.bastion-conn-sel-item{padding:8px 12px;margin:0 0 2px;border:0;border-radius:6px;font-size:13px;color:#cbd5e1;transition:background .15s,color .15s}
+.bastion-conn-sel-item:hover{background:#2f3042;color:#60a5fa;padding-left:12px}
+.bastion-conn-sel-item.sel{background:rgba(66,133,244,.16);color:#60a5fa;font-weight:600}
+.bastion-conn-sel-item.sel::before{display:none}
+.bastion-conn-sel-item.sel::after{content:'✓';color:#60a5fa;font-weight:600;margin-left:auto}
+/* 收起态不留下 padding 高度 */
+.cust-sel-drop:not(.open),.bastion-conn-sel-drop:not(.open){padding:0}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="hp" :class="{ open: hostVisible }">
+    <div class="hp-title">主机 <span style="flex:1"></span><span @click="refreshHosts" title="刷新" style="cursor:pointer;font-size:16px;opacity:.7">🔄</span></div>
+    <div class="hp-search"><input type="text" v-model="hostKeyword" placeholder="搜索..."/></div>
+    <div class="hp-list">
+      <div v-if="hostLoading" class="hp-loading">加载中...</div>
+      <template v-else v-for="(hosts, account) in groupedHosts" :key="account">
+        <div class="hp-group">
+          <div class="hp-group-title" @click="toggleGroup(account)"><span class="hp-group-arrow" :class="{ open: !collapsedGroups[account] }">▶</span>{{ account }}</div>
+          <template v-if="!collapsedGroups[account]">
+            <div v-for="h in hosts" :key="h.id" class="hp-item" @click="onHostClick(h)">
+              <span class="hp-dot" :class="h.status==='Stopped'?'red':(hasActiveTab(h.id)?'green':'gray')"></span>
+              <span class="hp-name">{{ h.instance_name || h.instance_id }}</span>
+              <span class="hp-ip">{{ h.public_ip_address || h.private_ip_address || '' }}</span>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+  </div>
+  <div class="ta">
+    <div class="tb-bar" v-if="tabs.length">
+      <div v-for="(t, i) in tabs" :key="t.id" class="tb-tab" :class="{ active: i === activeTab }" @click="switchTab(i)" @contextmenu.prevent="openTabMenu($event, i)">
+        <span class="tb-dot" :class="t.status==='已连接'?'connected':(t.status==='连接中'||t.status==='握手中'?'connecting':'disconnected')"></span>
+        <input v-if="t.renaming" v-focus v-model="t.name" :size="Math.max((t.name||'').length, 4)" class="tb-rename-input" @click.stop @keydown.enter.prevent="t.renaming=false" @keydown.esc.prevent="t.renaming=false" @blur="t.renaming=false" />
+        <span v-else class="tb-name" @dblclick="startRename(i)">{{ t.name }}</span>
+        <span class="tb-close" @click.stop="closeTab(i)">✕</span>
+      </div>
+    </div>
+    <div v-if="tabMenu.open" class="tab-menu" :style="{ left: tabMenu.x + 'px', top: tabMenu.y + 'px' }" @click.stop>
+      <div class="tab-menu-item" @click="startRename(tabMenu.index)">✏️ 重命名</div>
+      <div class="tab-menu-item" @click="duplicateTab(tabMenu.index)">📋 复制连接</div>
+      <div class="tab-menu-item" @click="reconnectTabAt(tabMenu.index)">🔄 重新连接</div>
+      <div class="tab-menu-sep"></div>
+      <div class="tab-menu-item danger" @click="closeTabMenu(); closeTab(tabMenu.index)">✕ 关闭标签</div>
+    </div>
+    <div class="th" v-if="tab">
+      <div class="th-l">
+        <button @click="hostVisible=!hostVisible" title="主机列表" style="font-size:14px;padding:2px 6px;">{{ hostVisible ? '◀' : '▶' }}</button>
+        <span style="color:#4ec9b0;white-space:nowrap;">{{ tab.name }}</span>
+        <span style="color:#888;white-space:nowrap;">{{ tab.ip }}:{{ tab.sshPort || 22 }}</span>
+        <span style="color:#888;font-size:12px;">{{ tab.status }}</span>
+      </div>
+      <div class="th-r">
+        <button @click="toggleFiles" title="文件">📁</button>
+        <div class="cust-sel"><div class="cust-sel-trigger" @click.stop="netDrpOpen=!netDrpOpen;credDrpOpen=false;connCredDrpOpen=false">{{ (tab.network==='public'?'公网':'内网') + (tab.ip ? ' · ' + tab.ip : '') }} <span class="cust-sel-arrow">▼</span></div><div class="cust-sel-drop" :class="{ open: netDrpOpen }" @wheel.stop><div class="cust-sel-item" v-if="tab.publicIp" :class="{sel:tab.network==='public'}" @click.stop="tab.network='public';netDrpOpen=false;reconnectTab()">公网 · {{ tab.publicIp }}</div><div class="cust-sel-item" v-if="tab.privateIp" :class="{sel:tab.network==='private'}" @click.stop="tab.network='private';netDrpOpen=false;reconnectTab()">内网 · {{ tab.privateIp }}</div></div></div>
+        <div class="cust-sel" style="min-width:120px"><div class="cust-sel-trigger" @click.stop="credDrpOpen=!credDrpOpen;netDrpOpen=false;connCredDrpOpen=false" style="min-width:100px;max-width:160px;overflow:hidden;text-overflow:ellipsis">{{ selCredLabel(tab.credentials, tab.credentialId) }} <span class="cust-sel-arrow">▼</span></div><div class="cust-sel-drop" :class="{ open: credDrpOpen }" @wheel.stop style="min-width:180px"><div class="cust-sel-item" v-for="c in tab.credentials" :key="c.id" :class="{sel:tab.credentialId===c.id}" @click.stop="tab.credentialId=c.id;credDrpOpen=false;reconnectTab()">{{ c.name }}({{ c.username }})</div></div></div>
+        <button @click="reconnectTab" :style="{ background: tab.status.includes('断开')?'#1a73e8':'#444' }">{{ tab.status.includes('断开')?'重连':'断开' }}</button>
+        <button @click.stop="termToolsOpen=!termToolsOpen;netDrpOpen=false;credDrpOpen=false;connCredDrpOpen=false" title="终端工具与快捷键" style="font-size:14px;">⌨️</button>
+        <div class="term-tools" :class="{ open: termToolsOpen }" @click.stop>
+          <div class="tt-sec">
+            <div class="tt-title">字体</div>
+            <div class="tt-row">
+              <button @click="zoomFont(-1)">A-</button>
+              <button @click="zoomFont(0)" title="重置字体">A</button>
+              <button @click="zoomFont(1)">A+</button>
+            </div>
+          </div>
+          <div class="tt-sec">
+            <div class="tt-title">操作</div>
+            <div class="tt-row">
+              <button @click="clearTerm">🧹 清屏</button>
+            </div>
+          </div>
+          <div class="tt-sec">
+            <div class="tt-title">快捷键</div>
+            <ul class="tt-keys">
+              <li><span class="tt-k">选中</span> 自动复制</li>
+              <li><span class="tt-k">右键</span> 粘贴</li>
+              <li><span class="tt-k">Ctrl+Shift+V</span> 粘贴</li>
+              <li><span class="tt-k">Shift+Insert</span> 粘贴</li>
+              <li><span class="tt-k">Ctrl+Shift+K</span> 清屏</li>
+              <li><span class="tt-k">Ctrl+=/-/0</span> 缩放</li>
+              <li><span class="tt-k">Ctrl+A/E</span> 行首/行尾</li>
+              <li><span class="tt-k">Ctrl+L/R</span> 清屏/搜索</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tb">
+      <div class="tty-area">
+        <div v-for="(t, i) in tabs" :key="t.id" :id="'tty-'+t.id" class="tty" :class="{ active: i === activeTab }"></div>
+        <div v-if="!tabs.length" style="flex:1;display:flex;align-items:center;justify-content:center;color:#888;font-size:14px">点击左侧主机开始连接</div>
+      </div>
+      <div v-if="fileOpen" class="fh" @mousedown="fileResizeStart"></div>
+      <div class="fd" :class="{ open: fileOpen }" :style="{ width: fileOpen ? fileWidth + 'px' : '0' }">
+        <div class="fd-inner" @dragover.prevent @dragenter.prevent @drop.prevent="onFileDrop">
+          <div style="font-size:12px;color:#888;margin-bottom:4px;">📁 {{ tab ? tab.name : '' }} — {{ filePath }}</div>
+          <div class="fd-bar"><button @click="fileUp" :disabled="filePath==='/'" style="background:#444;color:#ccc;border:1px solid #555;border-radius:4px;padding:2px 6px;font-size:12px">↑</button><button @click="fileRefresh" style="background:#444;color:#ccc;border:1px solid #555;border-radius:4px;padding:2px 6px;font-size:12px" title="刷新">🔄</button><input type="text" v-model="filePathIn" @keyup.enter="fileGo(filePathIn)" placeholder="/"/><label style="cursor:pointer;background:#4285f4;color:#fff;border-radius:4px;padding:3px 8px;font-size:12px;white-space:nowrap">上传<input type="file" @change="fileUpload" style="display:none" multiple/></label></div>
+          <div v-if="uploadTasks.length" class="up-panel">
+            <div class="up-head"><span>上传队列 ({{ uploadDoneCount }}/{{ uploadTasks.length }})</span><span class="up-conc">并发<select :value="uploadConcurrency" @change="setUploadConcurrency($event.target.value)" class="up-conc-sel"><option v-for="n in 10" :key="n" :value="n">{{ n }}</option></select></span><button v-if="uploadHasFinished" class="up-clear" @click="clearFinishedUploads" title="清除已结束">清除完成</button></div>
+            <div class="up-list">
+              <div v-for="task in uploadTasks" :key="task.id" class="up-item" :class="'st-'+task.status">
+                <div class="up-row"><span class="up-name" :title="task.name">{{ task.name }}</span><span class="up-pct">{{ task.progress }}%</span><button v-if="task.status==='waiting'||task.status==='uploading'" class="up-pause" @click="pauseUploadTask(task)" title="暂停">⏸</button><button v-if="task.status==='paused'" class="up-pause up-resume" @click="resumeUploadTask(task)" title="继续">▶</button><button v-if="task.status==='waiting'||task.status==='uploading'||task.status==='paused'" class="up-cancel" @click="cancelUploadTask(task)" title="取消">✕</button><button v-else class="up-cancel up-rm" @click="removeUploadTask(task.id)" title="移除">✕</button></div>
+                <div class="up-bar"><div class="up-fill" :style="{width: task.progress + '%'}"></div></div>
+                <div class="up-sub">{{ task.sub }}</div>
+              </div>
+            </div>
+          </div>
+          <div v-if="downloadTasks.length" class="up-panel">
+            <div class="up-head"><span>下载队列 ({{ downloadDoneCount }}/{{ downloadTasks.length }})</span><button v-if="downloadHasFinished" class="up-clear" @click="clearFinishedDownloads" title="清除已结束">清除完成</button></div>
+            <div class="up-list">
+              <div v-for="task in downloadTasks" :key="task.id" class="up-item" :class="'st-'+task.status">
+                <div class="up-row"><span class="up-name" :title="task.name">{{ task.name }}</span><span class="up-pct">{{ task.progress }}%</span><button v-if="task.status==='waiting'||task.status==='uploading'" class="up-cancel" @click="cancelDownloadTask(task)" title="取消">✕</button><button v-else class="up-cancel up-rm" @click="removeDownloadTask(task.id)" title="移除">✕</button></div>
+                <div class="up-bar"><div class="up-fill" :style="{width: task.progress + '%'}"></div></div>
+                <div class="up-sub">{{ task.sub }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="fd-list"><div v-if="fileLoading" class="hp-loading">加载中...</div><div v-else-if="fileList.length===0" class="hp-loading">空</div><div v-for="(f, index) in fileList" :key="f.name" class="fd-row" :class="{ sel: fileSel===f.name }" @click="selectFile(f)" @dblclick="openFile(f)"><span>{{ f.is_dir?'📁':'📄' }}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ f.name }}</span><span style="color:#888;font-size:11px;flex-shrink:0">{{ f.is_dir?'':formatSize(f.size) }}</span><span class="fd-del" :title="(f.is_dir?'删除目录':'删除文件')+f.name" @click.stop="fileDelete(f, index)">🗑</span></div></div>
+          <div v-if="fileSel&&fileSelIsFile" class="fd-act"><button @click="openDownloadModal" style="background:#4285f4;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px">⬇ 下载 {{ fileSel }}</button><button @click="fileDelete(fileSel)" style="background:#ea4335;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px">🗑 删除</button><button @click="fileSel=''" style="background:#555;color:#ccc;border:none;border-radius:4px;padding:4px 10px;font-size:12px">取消</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-overlay animated" :class="{ open: dlVisible }" @click.self="dlVisible=false">
+    <div class="bastion-conn" style="max-width:360px">
+      <h3>下载文件</h3>
+      <div class="sub-line">保存位置由浏览器决定，请确认文件名</div>
+      <div style="margin:14px 0"><label class="sec-label">文件名</label><input v-model="dlName" @keyup.enter="confirmDownload" style="width:100%;background:#1a1a2e;color:#ccc;border:1px solid #555;padding:6px;border-radius:4px;font-size:13px"/></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button @click="dlVisible=false" style="background:#555;color:#ccc;border:none;border-radius:4px;padding:6px 14px;cursor:pointer">取消</button><button @click="confirmDownload" style="background:#4285f4;color:#fff;border:none;border-radius:4px;padding:6px 14px;cursor:pointer">下载</button></div>
+    </div>
+  </div>
+  <div class="modal-overlay animated" :class="{ open: connVisible }" @click.self="connVisible=false">
+    <div class="bastion-conn">
+      <h3>SSH 连接</h3>
+      <div class="sub-line">选择网络类型和凭证后连接 <span class="sub-badge">{{ connName }}</span></div>
+      <!-- 目标主机 -->
+      <div class="bastion-conn-host">
+        <div class="h-label">目标主机</div>
+        <div class="h-name">{{ connName }}</div>
+      </div>
+      <!-- 网络类型 -->
+      <div style="margin-bottom:20px">
+        <label class="sec-label">网络类型</label>
+        <label v-if="connPublicIp" class="bastion-conn-ip" :class="{ active: connNetwork==='public' }">
+          <input type="radio" v-model="connNetwork" value="public"/>
+          <span class="bastion-conn-ip-tag pub">公网</span>
+          <span class="bastion-conn-ip-addr">{{ connPublicIp }}:{{ connSshPort || 22 }}</span>
+        </label>
+        <label v-if="connPrivateIp" class="bastion-conn-ip" :class="{ active: connNetwork==='private' }">
+          <input type="radio" v-model="connNetwork" value="private"/>
+          <span class="bastion-conn-ip-tag pri">内网</span>
+          <span class="bastion-conn-ip-addr">{{ connPrivateIp }}:{{ connSshPort || 22 }}</span>
+        </label>
+      </div>
+      <!-- 账号凭证 — 目录式下拉 -->
+      <div>
+        <label class="sec-label">账号凭证</label>
+        <div class="bastion-conn-sel" :class="{ active: connCredDrpOpen }">
+          <div class="bastion-conn-sel-trigger" @click.stop="connCredDrpOpen=!connCredDrpOpen;netDrpOpen=false;credDrpOpen=false">
+            {{ selCredLabel(connCreds, connCredId) }}
+            <span class="bastion-conn-sel-arrow">▼</span>
+          </div>
+          <div class="bastion-conn-sel-drop" :class="{ open: connCredDrpOpen }" @wheel.stop>
+            <div v-if="connCreds.length===0" class="bastion-conn-sel-empty">暂无可用凭证</div>
+            <div class="bastion-conn-sel-item" v-for="c in connCreds" :key="c.id" :class="{sel:connCredId===c.id}" @click.stop="connCredId=c.id;connCredDrpOpen=false">🔑 {{ c.name }}({{ c.username }})</div>
+          </div>
+        </div>
+      </div>
+      <!-- 操作按钮 -->
+      <div class="bastion-conn-actions">
+        <button class="bastion-conn-btn bastion-conn-btn-cancel" @click="connVisible=false">取消</button>
+        <button class="bastion-conn-btn bastion-conn-btn-primary" @click="doConnect" :disabled="!connCredId">连接</button>
+      </div>
+    </div>
+  </div>
+  <div v-if="netDrpOpen||credDrpOpen||connCredDrpOpen||termToolsOpen||tabMenu.open" class="drp-backdrop" @click="netDrpOpen=false;credDrpOpen=false;connCredDrpOpen=false;termToolsOpen=false;tabMenu.open=false" @wheel.prevent></div>
+  <!-- 登录失效遮罩：打开新窗口登录后，storage 事件自动关闭本遮罩 -->
+  <div v-if="loginExpired" class="expired-overlay">
+    <div class="expired-card">
+      <h2>⏰ 登录已失效</h2>
+      <p>打开登录窗口完成登录，本页面将自动恢复</p>
+      <div class="expired-actions">
+        <button class="expired-btn expired-btn-primary" onclick="openLoginWindow()">🔑 打开登录窗口</button>
+        <button class="expired-btn expired-btn-secondary" onclick="dismissLoginExpired()">✅ 我已登录，继续使用</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const { createApp, ref, reactive, computed, watch, onMounted, nextTick } = Vue;
+const TOKEN_KEY = 'cloud_token';
+function authFetch(u, o) { o = o || {}; const t = localStorage.getItem(TOKEN_KEY); if (!o.headers) o.headers = {}; if (t) o.headers['Authorization'] = t; return fetch(u, o).then(function(r) { if (r.status === 401) { showLoginExpired(); return Promise.reject(new Error('unauthorized')); } return r; }); }
+// 登录失效状态（Vue 控制遮罩显隐）
+var loginExpiredRef = null;
+function showLoginExpired() {
+  // 清理所有登录态，确保新窗口打开时显示空白登录页
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('cloud_user');
+  localStorage.removeItem('cloud_role');
+  if (loginExpiredRef) loginExpiredRef.value = true;
+}
+// 用户在其他窗口登录后，storage 事件自动关闭遮罩
+function dismissLoginExpired() {
+  if (localStorage.getItem(TOKEN_KEY)) {
+    if (loginExpiredRef) loginExpiredRef.value = false;
+  } else {
+    alert('\u5c1a\u672a\u767b\u5f55\uff0c\u8bf7\u5148\u5728\u767b\u5f55\u7a97\u53e3\u5b8c\u6210\u767b\u5f55'); // 尚未登录，请先在登录窗口完成登录
+  }
+}
+// 在新窗口打开登录页（此时 token 已清理，必然显示空白登录页）
+function openLoginWindow() { window.open('/','_blank'); }
+function showToast(m) { var e = document.getElementById('toast'); if (!e) { e = document.createElement('div'); e.id = 'toast'; e.style.cssText = 'position:fixed;top:72px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 20px;border-radius:6px;z-index:9999;font-size:13px;transition:opacity .3s'; document.body.appendChild(e); } e.textContent = m; e.style.opacity = '1'; clearTimeout(e._t); e._t = setTimeout(function() { e.style.opacity = '0'; }, 2500); }
+
+var tabUid = 0;
+
+var app = createApp({
+  setup: function() {
+    var tabs = ref([]), activeTab = ref(0), hostList = ref([]), hostLoading = ref(false), hostKeyword = ref('');
+    // 资产可能只有弹性 IP（eip_address），也可能公网 IP 与弹性 IP 并存；
+    // refreshHosts 会把所有 IP 汇总到 _allIps，这里按汇总值匹配，避免弹性 IP 搜不到。
+    var filteredHosts = computed(function() { if (!hostKeyword.value) return hostList.value; var k = hostKeyword.value.trim().toLowerCase(); return hostList.value.filter(function(h) { return (h.instance_name && h.instance_name.toLowerCase().includes(k)) || (h.instance_id && h.instance_id.toLowerCase().includes(k)) || (h.account_name && h.account_name.toLowerCase().includes(k)) || (h._allIps && h._allIps.toLowerCase().includes(k)); }); });
+    var groupedHosts = computed(function() { var g = {}; filteredHosts.value.forEach(function(h) { var k = h.account_name || 'default'; if (!g[k]) g[k] = []; g[k].push(h); }); var o = {}; if (g['default']) { o['default'] = g['default']; delete g['default']; } Object.keys(g).sort().forEach(function(k) { o[k] = g[k]; }); return o; });
+    var isSearching = computed(function() { return hostKeyword.value.trim().length > 0; });
+    var collapsedGroups = reactive({});
+    var savedCollapsed = {};
+    function toggleGroup(a) { collapsedGroups[a] = !collapsedGroups[a]; }
+
+    var loginExpired = ref(false); loginExpiredRef = loginExpired; // 供外部 showLoginExpired() 使用
+    var fileOpen = ref(false), filePath = ref(''), filePathIn = ref(''), fileList = ref([]), fileLoading = ref(false), fileSel = ref(''), fileSelIsFile = ref(false), fileWidth = ref(300);
+    // 上传队列：每个文件一个任务，独立进度/状态/取消
+    var uploadTasks = ref([]); // {id,file,name,size,progress,status,sub}  status: waiting|uploading|done|error|canceled|skipped
+    var uploadSeq = 0, uploadRunning = false;
+    // 同时上传的文件个数（并发粒度=文件级，单文件分片仍串行）；默认 3，存 localStorage，范围 1~10
+    function clampConc(v) { v = parseInt(v, 10); if (isNaN(v)) v = 3; return Math.max(1, Math.min(10, v)); }
+    var uploadConcurrency = ref(clampConc(localStorage.getItem('uploadConcurrency')));
+    function setUploadConcurrency(v) {
+      var old = uploadConcurrency.value;
+      uploadConcurrency.value = clampConc(v);
+      localStorage.setItem('uploadConcurrency', String(uploadConcurrency.value));
+      // 改小：把多余的 uploading 任务中断并转为 paused（保留断点，排在后面，手动 ▶ 继续），使实际并发立即降到新值
+      if (uploadConcurrency.value < old) enforceConcurrency();
+      runUploadQueue(); // 改大时补位 waiting 任务
+    }
+    // 将超出并发上限的 uploading 任务降级为 paused（中断当前分片，保留断点）
+    function enforceConcurrency() {
+      var uploading = uploadTasks.value.filter(function(x) { return x.status === 'uploading'; });
+      for (var i = uploadConcurrency.value; i < uploading.length; i++) {
+        var tk = uploading[i];
+        tk.status = 'paused'; tk.sub = '\u5df2\u6682\u505c';
+        var x = uploadXhrMap[tk.id]; if (x) x.abort();
+      }
+    }
+    var uploadXhrMap = {}; // id -> 当前分片 xhr，用于取消
+    var CHUNK_SIZE = 2 * 1024 * 1024; // 分片大小 2MB
+    var uploadDoneCount = computed(function() { return uploadTasks.value.filter(function(x) { return x.status === 'done' || x.status === 'skipped'; }).length; });
+    var uploadHasFinished = computed(function() { return uploadTasks.value.some(function(x) { return x.status === 'done' || x.status === 'error' || x.status === 'canceled' || x.status === 'skipped'; }); });
+    // 下载队列：每个文件一个任务，独立进度/状态/取消；保存位置由浏览器决定
+    var downloadTasks = ref([]); // {id,name,remote,saveName,progress,status,sub}  status: waiting|uploading|done|error|canceled
+    var dlSeq = 0, downloadRunning = false;
+    var dlXhrMap = {}; // id -> 当前下载 xhr，用于取消
+    var dlVisible = ref(false), dlName = ref('');
+    var downloadDoneCount = computed(function() { return downloadTasks.value.filter(function(x) { return x.status === 'done' || x.status === 'skipped'; }).length; });
+    var downloadHasFinished = computed(function() { return downloadTasks.value.some(function(x) { return x.status === 'done' || x.status === 'error' || x.status === 'canceled' || x.status === 'skipped'; }); });
+
+    function hasActiveTab(hid) { return tabs.value.some(function(t) { return t.hostId === hid && t.status === '\u5df2\u8fde\u63a5'; }); }
+    var tab = computed(function() { return tabs.value[activeTab.value] || null; });
+    var hostVisible = ref(true);
+    var connVisible = ref(false), connName = ref(''), connNetwork = ref('public'), connPublicIp = ref(''), connPrivateIp = ref(''), connSshPort = ref(22), connCredId = ref(0), connCreds = ref([]), connLoading = ref(false);
+    var netDrpOpen = ref(false), credDrpOpen = ref(false), connCredDrpOpen = ref(false), termToolsOpen = ref(false);
+    var tabMenu = reactive({ open:false, x:0, y:0, index:-1 });
+    function openTabMenu(e, i) { tabMenu.x = e.clientX; tabMenu.y = e.clientY; tabMenu.index = i; tabMenu.open = true; }
+    function closeTabMenu() { tabMenu.open = false; }
+    function startRename(i) { var t = tabs.value[i]; if (!t) return; t.renaming = true; closeTabMenu(); }
+    function reconnectTabAt(i) {
+      var t = tabs.value[i]; if (!t) return;
+      // token 失效时弹遮罩提示
+      if (!localStorage.getItem(TOKEN_KEY)) { showLoginExpired(); return; }
+      clearInterval(t.heartbeat);
+      var oldSid = t.fileSession;
+      if (t.ws) t.ws.close();
+      if (t.xterm) { try { t.xterm.dispose(); } catch(e) {} t.xterm = null; }
+      var el = getTermEl(t); if (el) el.innerHTML = '';
+      t.ip = t.network === 'private' && t.privateIp ? t.privateIp : t.publicIp;
+      t.fileSession = ''; // 不复用旧 session，总是新建会话
+      t.status = '\u5c31\u7eea';
+      activeTab.value = i;
+      // 释放旧 SSH 会话
+      if (oldSid) { var tk2 = localStorage.getItem(TOKEN_KEY) || ''; fetch('/api/bastion/disconnect', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': tk2 }, body: JSON.stringify({ session_id: oldSid }) }).catch(function(){}); }
+      setTimeout(function() { startTerminal(i); }, 300);
+      closeTabMenu();
+    }
+    function duplicateTab(i) {
+      var src = tabs.value[i]; if (!src) return;
+      if (!localStorage.getItem(TOKEN_KEY)) { showLoginExpired(); return; }
+      var t = { id: ++tabUid, hostId: src.hostId, name: src.name, publicIp: src.publicIp, privateIp: src.privateIp, network: src.network, publicIsEip: !!src.publicIsEip, credentialId: src.credentialId, credentials: [].concat(src.credentials || []), status: '\u5c31\u7eea', ws: null, xterm: null, heartbeat: null, fileSession: '' };
+      t.ip = t.network === 'private' && t.privateIp ? t.privateIp : t.publicIp;
+      tabs.value.push(t);
+      saveTabs();
+      var curIdx = tabs.value.length - 1;
+      activeTab.value = curIdx;
+      nextTick(function() { startTerminal(curIdx); });
+      closeTabMenu();
+    }
+    function selCredLabel(creds, cid) { if (!creds || !creds.length) return '\u65e0\u51ed\u8bc1'; var c = creds.find(function(x) { return x.id === cid; }); return c ? c.name + '(' + c.username + ')' : '\u9009\u62e9\u51ed\u8bc1'; }
+    var connTargetHost;
+    // 凭证缓存：{ hostId: [cred1, cred2, ...] }
+    var hostCredCache = {};
+    var credCacheLoading = false;
+
+    function getCredPref(hostId) {
+      try { return parseInt(localStorage.getItem('bastion_cred_pref_' + hostId)) || 0; } catch (e) { return 0; }
+    }
+    function setCredPref(hostId, credId) {
+      try { localStorage.setItem('bastion_cred_pref_' + hostId, credId); } catch (e) {}
+    }
+    function pickCred(creds, hostId) {
+      if (!creds || creds.length === 0) return 0;
+      var pref = getCredPref(hostId);
+      if (pref && creds.some(function(c) { return c.id === pref; })) return pref;
+      return creds[0].id;
+    }
+
+    // 预加载所有主机的凭证缓存
+    async function preloadCredCache() {
+      if (credCacheLoading) return;
+      credCacheLoading = true;
+      var hosts = hostList.value;
+      for (var i = 0; i < hosts.length; i++) {
+        var hid = hosts[i].id;
+        if (hostCredCache[hid]) continue;
+        try {
+          var r = await authFetch('/api/bastion/assets/' + hid + '/credentials');
+          var j = await r.json();
+          if (j.code === 0 && j.data.length > 0) hostCredCache[hid] = j.data;
+        } catch (e) {}
+      }
+      credCacheLoading = false;
+    }
+
+    // ===== 标签持久化：仅保存连接元数据，不保存 session_id（对标 JumpServer：刷新/复制窗口各自独立） =====
+    function saveTabs() {
+      try {
+        var data = tabs.value.map(function(t) {
+          return { hostId: t.hostId, name: t.name, publicIp: t.publicIp, privateIp: t.privateIp, sshPort: t.sshPort, network: t.network, publicIsEip: !!t.publicIsEip, credentialId: t.credentialId };
+        });
+        sessionStorage.setItem('bastion_tabs', JSON.stringify(data));
+      } catch (e) {}
+    }
+    // 由元数据构造标签对象（不含 ws/xterm/heartbeat 等非序列化字段，session_id 始终为空—每次连接新建会话）
+    function makeTab(meta) {
+      var t = { id: ++tabUid, hostId: meta.hostId, name: meta.name || '', publicIp: meta.publicIp || '', privateIp: meta.privateIp || '', sshPort: meta.sshPort || 0, network: meta.network || 'public', publicIsEip: !!meta.publicIsEip, credentialId: meta.credentialId || 0, credentials: [], status: '\u5c31\u7eea', ws: null, xterm: null, heartbeat: null, fileSession: '' };
+      t.ip = t.network === 'private' && t.privateIp ? t.privateIp : t.publicIp;
+      return t;
+    }
+    // 打开一个标签并拉取凭证后自动连接（恢复/深链通用）
+    function openTabAndConnect(meta) {
+      var t = makeTab(meta);
+      tabs.value.push(t);
+      saveTabs();
+      var curIdx = tabs.value.length - 1;
+      activeTab.value = curIdx;
+      authFetch('/api/bastion/assets/' + t.hostId + '/credentials').then(function(r) { return r.json(); }).then(function(j) {
+        if (j.code === 0) {
+          var creds = j.data || [];
+          t.credentials = [].concat(creds);
+          if (!t.credentialId && creds.length) t.credentialId = creds[0].id;
+        }
+        nextTick(function() { startTerminal(curIdx); });
+      }).catch(function() { nextTick(function() { startTerminal(curIdx); }); });
+    }
+    // 启动时恢复会话
+    // - URL 带 ?id= 参数（从 index.html 打开）→ 只连接该主机，不恢复 localStorage 中的旧标签
+    // - URL 无参数（直接打开或刷新）→ 恢复 localStorage 中保存的全部标签
+    function restoreSession() {
+      var p = new URLSearchParams(location.search);
+      var id = parseInt(p.get('id')) || 0;
+      // 清除 URL 参数，避免 IP/凭证等敏感信息残留在地址栏
+      if (location.search) history.replaceState({}, '', location.pathname);
+
+      if (id) {
+        // 深链模式：只连接指定主机
+        var urlCid = parseInt(p.get('credential_id')) || 0;
+        authFetch('/api/bastion/assets/' + id + '/credentials').then(function(r) { return r.json(); }).then(function(j) {
+          var creds = (j.code === 0) ? (j.data || []) : [];
+          var cid = (urlCid && creds.some(function(c) { return c.id === urlCid; })) ? urlCid : (creds.length > 0 ? creds[0].id : 0);
+          var t = makeTab({ hostId: id, name: p.get('name') || '', publicIp: p.get('public_ip') || '', privateIp: p.get('private_ip') || '', sshPort: parseInt(p.get('ssh_port')) || 0, network: p.get('network') || 'public', publicIsEip: p.get('public_is_eip') === '1', credentialId: cid });
+          t.credentials = [].concat(creds);
+          tabs.value.push(t);
+          saveTabs(); // 连接后存入 localStorage，刷新可恢复
+          var curIdx = tabs.value.length - 1;
+          activeTab.value = curIdx;
+          nextTick(function() { startTerminal(curIdx); });
+        });
+        return;
+      }
+
+      // 普通模式：恢复 localStorage 中保存的全部标签
+      var saved = [];
+      try { saved = JSON.parse(sessionStorage.getItem('bastion_tabs') || '[]') || []; } catch (e) {}
+      saved.forEach(function(m) { if (m && m.hostId) { openTabAndConnect(m); } });
+    }
+    // 兼容只有弹性 IP 的资产：补到 public_ip_address，并把所有 IP 汇总到 _allIps 供搜索/展示
+    // _publicIsEip 标记「公网位其实来自弹性 IP」，建连时要告诉后端走 network=eip，
+    // 否则后端按 network=public 取不到 PublicIpAddress 会回退连私网。
+    function normalizeHost(h) {
+      var ips = [h.public_ip_address, h.eip_address, h.elastic_ip_address, h.ip_address, h.private_ip_address, h.ip].filter(Boolean).map(String);
+      h._publicIsEip = !h.public_ip_address && !!(h.eip_address || h.elastic_ip_address);
+      if (h._publicIsEip) h.public_ip_address = h.eip_address || h.elastic_ip_address;
+      h._allIps = ips.join(' ');
+      return h;
+    }
+    async function refreshHosts() { hostLoading.value = true; try { var r = await authFetch('/api/bastion/assets'); var j = await r.json(); if (j.code === 0) { hostList.value = (j.data || []).map(normalizeHost); initCollapsed(); preloadCredCache(); } } catch(e) {} finally { hostLoading.value = false; } }
+    function initCollapsed() { hostList.value.forEach(function(h) { var k = h.account_name || 'default'; if (!(k in collapsedGroups)) collapsedGroups[k] = true; }); }
+
+    async function onHostClick(h) {
+      connTargetHost = h;
+      connName.value = h.instance_name || h.instance_id;
+      connPublicIp.value = h.public_ip_address || '';
+      connPrivateIp.value = h.private_ip_address || '';
+      connSshPort.value = h.ssh_port || 22;
+      // 每次打开都默认选第一个可用网络（公网优先），不沿用上次的选择
+      connNetwork.value = connPublicIp.value ? 'public' : 'private';
+
+      // 先准备数据，数据就绪后再打开弹窗（弹窗内select直接是成品）
+      var creds = hostCredCache[h.id];
+      if (!creds) {
+        try {
+          var r = await authFetch('/api/bastion/assets/' + h.id + '/credentials');
+          var j = await r.json();
+          if (j.code === 0 && j.data.length > 0) {
+            hostCredCache[h.id] = j.data;
+            creds = j.data;
+          }
+        } catch(e) {}
+      }
+      connCreds.value = creds || [];
+      connCredId.value = creds ? pickCred(creds, h.id) : 0;
+      // 数据就绪，开弹窗（带CSS过渡动画，select已是成品）
+      connVisible.value = true;
+    }
+
+    function doConnect() {
+      if (!connCredId.value) return;
+      if (!localStorage.getItem(TOKEN_KEY)) { showLoginExpired(); return; }
+      connVisible.value = false;
+      if (connTargetHost) setCredPref(connTargetHost.id, connCredId.value);
+      var h = connTargetHost;
+      var t = { id: ++tabUid, hostId: h.id, name: h.instance_name || h.instance_id, publicIp: h.public_ip_address || '', privateIp: h.private_ip_address || '', sshPort: h.ssh_port || 0, network: connNetwork.value, publicIsEip: !!(h && h._publicIsEip), credentialId: connCredId.value, credentials: [].concat(connCreds.value), status: '\u5c31\u7eea', ws: null, xterm: null, heartbeat: null, fileSession: '' };
+      t.ip = t.network === 'private' && t.privateIp ? t.privateIp : t.publicIp;
+      tabs.value.push(t);
+      saveTabs();
+      var curIdx = tabs.value.length - 1;
+      activeTab.value = curIdx;
+      fileSel.value = '';
+      fileSelIsFile.value = false;
+      if (fileOpen.value) {
+        fileList.value = [];
+        filePath.value = '';
+        filePathIn.value = '';
+      }
+      nextTick(function() { startTerminal(curIdx); });
+      saveTabs();
+    }
+
+    function switchTab(i) {
+      if (i !== activeTab.value) {
+        activeTab.value = i;
+        var t = tab.value;
+        if (t && t.xterm) { nextTick(function() { try { new FitAddon.FitAddon().fit(); } catch(e) {} }); }
+        fileSel.value = '';
+        fileSelIsFile.value = false;
+        if (fileOpen.value) {
+          if (t && t.fileSession) { filePath.value = ''; filePathIn.value = ''; fetchFiles(t.cwd || ''); }
+          else { fileList.value = []; filePath.value = ''; filePathIn.value = ''; }
+        }
+      }
+    }
+
+    function closeTab(i) {
+      var wasActive = (i === activeTab.value);
+      var t = tabs.value[i];
+      if (t) {
+        clearInterval(t.heartbeat);
+        if (t.ws) t.ws.close();
+        if (t.xterm) { try { t.xterm.dispose(); } catch(e) {} }
+        // 手动关闭标签：显式断开后端 shell（避免仅 detach 导致 shell 在后台残留直到超时）
+        if (t.fileSession) { var tk2 = localStorage.getItem(TOKEN_KEY) || ''; fetch('/api/bastion/disconnect', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': tk2 }, body: JSON.stringify({ session_id: t.fileSession }) }).catch(function(){}); }
+      }
+      tabs.value.splice(i, 1);
+      saveTabs();
+      if (activeTab.value >= tabs.value.length) activeTab.value = Math.max(0, tabs.value.length - 1);
+      if (wasActive && fileOpen.value) {
+        var cur = tab.value;
+        if (!cur || !cur.fileSession) {
+          fileList.value = [];
+          fileSel.value = '';
+          fileSelIsFile.value = false;
+          filePath.value = '';
+          filePathIn.value = '';
+          if (!cur) fileOpen.value = false;
+        } else {
+          filePath.value = '';
+          filePathIn.value = '';
+          fileSel.value = '';
+          fileSelIsFile.value = false;
+          fetchFiles();
+        }
+      }
+    }
+
+    function getTermEl(t) { return document.getElementById('tty-' + t.id); }
+    // 进入页面 / 连接建立 / 切换标签后自动把键盘焦点交给终端，不用先点一下才能输入
+    function focusActiveTerm(force) {
+      if (connVisible.value || dlVisible.value || loginExpired.value) return;
+      var ae = document.activeElement;
+      var inInput = ae && ae !== document.body && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable) &&
+                    !(ae.classList && ae.classList.contains('xterm-helper-textarea'));
+      if (!force && inInput) return;
+      var t = tab.value;
+      if (!t || !t.xterm) return;
+      nextTick(function() { try { t.xterm.focus(); } catch (e) {} });
+    }
+
+    // ===== 剪贴板 / 字体工具 =====
+    function copyText(txt) {
+      if (!txt) return;
+      if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(txt).catch(function(){}); }
+      else { var ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'position:fixed;top:-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(ta); }
+    }
+    function pasteFromClipboard(cb) {
+      if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.readText().then(cb).catch(function() { cb(''); }); }
+      else { showToast('非安全上下文，请使用右键粘贴或 Ctrl+V'); cb(''); }
+    }
+    function changeTermFont(idx, delta) {
+      var t = getRT(idx); if (!t || !t.xterm) return;
+      var cur = t.xterm.options.fontSize || 14;
+      var next = delta === 0 ? 14 : Math.min(28, Math.max(10, cur + delta));
+      t.xterm.options.fontSize = next;
+      if (t.fitAddon) { try { t.fitAddon.fit(); } catch (e) {} }
+    }
+    function clearTerm() { var t = tab.value; if (t && t.xterm) t.xterm.clear(); }
+    function zoomFont(delta) { changeTermFont(activeTab.value, delta); }
+
+    function getRT(idx) { return tabs.value[idx]; }
+    function startTerminal(idx) {
+      var t = getRT(idx); var el = getTermEl(t); if (!el || !t.credentialId) return;
+      // 终端 cwd 跟随：每次新建 shell 都从家目录重新探测
+      t.inputBuf = ''; t.cwd = ''; t.homeDir = ''; t.prevCwd = '';
+      var term = new Terminal({ cursorStyle: 'bar', cursorBlink: true, fontSize: 14, fontFamily: 'Menlo,Monaco,\"Courier New\",monospace', theme: { background: '#1e1e1e', foreground: '#d4d4d4' }, scrollback: 2000 });
+      var fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open(el);
+      function doFit() { try { fit.fit(); } catch (e) {} var rt = getRT(idx); if (rt && rt.ws && rt.ws.readyState === WebSocket.OPEN) rt.ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows })); }
+      try { fit.fit(); } catch (e) {}
+      requestAnimationFrame(function() { requestAnimationFrame(doFit); });
+      if (window.ResizeObserver) { var ro = new ResizeObserver(function() { doFit(); }); ro.observe(el); }
+      term.onResize(function(sz) { var rt = getRT(idx); if (rt.ws && rt.ws.readyState === WebSocket.OPEN) rt.ws.send(JSON.stringify({ type: 'resize', cols: sz.cols, rows: sz.rows })); });
+      getRT(idx).xterm = term; getRT(idx).fitAddon = fit; getRT(idx).status = '\u8fde\u63a5\u4e2d';
+      if (idx === activeTab.value) focusActiveTerm();
+      var proto = location.protocol === 'https:' ? 'wss' : 'ws'; var tk = localStorage.getItem(TOKEN_KEY) || '';
+      // 只有弹性 IP 的资产要让后端按 network=eip 取 EipAddress；传 public 会因 PublicIpAddress 为空回退连私网
+      // 每次连接都建新 SSH 会话（对标 JumpServer：刷新/复制窗口各自独立，不复用旧 shell）
+      var net = (t.network === 'public' && t.publicIsEip) ? 'eip' : t.network;
+      var qs = 'network=' + net + '&credential_id=' + t.credentialId + '&token=' + encodeURIComponent(tk) + '&cols=' + term.cols + '&rows=' + term.rows;
+      var ws = new WebSocket(proto + '://' + location.host + '/api/bastion/ws/' + t.hostId + '?' + qs);
+      ws.binaryType = 'arraybuffer'; getRT(idx).ws = ws;
+      ws.onopen = function() { getRT(idx).status = '\u63e1\u624b\u4e2d'; clearInterval(getRT(idx).heartbeat); getRT(idx).heartbeat = setInterval(function() { var rt = getRT(idx); if (rt.ws && rt.ws.readyState === WebSocket.OPEN) rt.ws.send(JSON.stringify({ type: 'ping' })); }, 30000); };
+      ws.onmessage = function(e) {
+        if (typeof e.data === 'string') {
+          try {
+            var d = JSON.parse(e.data);
+            if (d.type === 'connected') { getRT(idx).status = '\u5df2\u8fde\u63a5'; getRT(idx).fileSession = d.session_id || ''; getRT(idx).sshPort = parseInt(d.port) || getRT(idx).sshPort || 22; initSessionCwd(idx); if (idx === activeTab.value) focusActiveTerm(); /* session_id 仅存内存供文件操作，不持久化 */ }
+            else if (d.type === 'error') { getRT(idx).status = '\u9519\u8bef: ' + d.msg; getRT(idx).fileSession = ''; getRT(idx).xterm && getRT(idx).xterm.write('\r\n\u001b[31m' + d.msg + '\u001b[0m\r\n'); }
+          } catch(_) {}
+        } else { getRT(idx).xterm && getRT(idx).xterm.write(new Uint8Array(e.data)); }
+      };
+      ws.onclose = function() {
+        clearInterval(getRT(idx).heartbeat);
+        getRT(idx).status = '\u26a0 \u5df2\u65ad\u5f00';
+        getRT(idx).fileSession = '';
+        getRT(idx).xterm && getRT(idx).xterm.write('\r\n\u001b[31m[\u8fde\u63a5\u5df2\u65ad\u5f00]\u001b[0m\r\n');
+        if (tab.value === getRT(idx) && fileOpen.value) { fileList.value = []; fileSel.value = ''; fileSelIsFile.value = false; }
+      };
+      ws.onerror = function() { getRT(idx).status = '\u8fde\u63a5\u9519\u8bef'; getRT(idx).fileSession = ''; };
+      term.onData(function(data) {
+        var rt = getRT(idx);
+        if (rt.ws && rt.ws.readyState === WebSocket.OPEN) { rt.ws.send(data); trackCdInput(idx, data); }
+      });
+      // 选中即复制
+      term.onSelectionChange(function() { if (term.hasSelection()) copyText(term.getSelection()); });
+      // 右键粘贴
+      el.addEventListener('contextmenu', function(e) { e.preventDefault(); pasteFromClipboard(function(txt) { if (txt) term.paste(txt); }); });
+      // 快捷键：Ctrl+Shift+V / Shift+Insert 粘贴；Ctrl+=/-/0 缩放；Ctrl+Shift+K 清屏
+      term.attachCustomKeyEventHandler(function(ev) {
+        if (!ev) return true;
+        var ctrl = ev.ctrlKey || ev.metaKey, shift = ev.shiftKey;
+        if (ctrl && shift && (ev.key === 'V' || ev.key === 'v')) { ev.preventDefault(); pasteFromClipboard(function(txt) { if (txt) term.paste(txt); }); return false; }
+        if (shift && ev.key === 'Insert') { ev.preventDefault(); pasteFromClipboard(function(txt) { if (txt) term.paste(txt); }); return false; }
+        if (ctrl && (ev.key === '=' || ev.key === '+')) { ev.preventDefault(); changeTermFont(idx, 1); return false; }
+        if (ctrl && (ev.key === '-' || ev.key === '_')) { ev.preventDefault(); changeTermFont(idx, -1); return false; }
+        if (ctrl && ev.key === '0') { ev.preventDefault(); changeTermFont(idx, 0); return false; }
+        if (ctrl && shift && (ev.key === 'K' || ev.key === 'k')) { ev.preventDefault(); term.clear(); return false; }
+        return true;
+      });
+    }
+
+    function reconnectTab() {
+      var t = tab.value; if (!t) return;
+      var curIdx = activeTab.value;
+      // token 失效时弹遮罩提示
+      if (!localStorage.getItem(TOKEN_KEY)) { showLoginExpired(); return; }
+      // 已连接状态点「断开」→ 直接关闭标签（对标 JumpServer：断开会话而非重连）
+      if (!t.status.includes('\u65ad\u5f00') && !t.status.includes('\u9519\u8bef')) {
+        closeTab(curIdx);
+        return;
+      }
+      // 已断开/错误状态点「重连」→ 清理后新建会话
+      clearInterval(t.heartbeat);
+      var oldSid = t.fileSession;
+      if (t.ws) t.ws.close();
+      if (t.xterm) { try { t.xterm.dispose(); } catch(e) {} t.xterm = null; }
+      var el = getTermEl(t); if (el) el.innerHTML = '';
+      t.ip = t.network === 'private' && t.privateIp ? t.privateIp : t.publicIp;
+      t.fileSession = ''; // 不复用旧 session，总是新建
+      t.status = '\u5c31\u7eea';
+      if (oldSid) { var tk2 = localStorage.getItem(TOKEN_KEY) || ''; fetch('/api/bastion/disconnect', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': tk2 }, body: JSON.stringify({ session_id: oldSid }) }).catch(function(){}); }
+      setTimeout(function() { startTerminal(curIdx); }, 300);
+      saveTabs();
+    }
+
+    function toggleFiles() {
+      fileOpen.value = !fileOpen.value;
+      if (fileOpen.value) {
+        var t = tab.value;
+        if (!t || !t.fileSession) { fileList.value = []; filePath.value = ''; filePathIn.value = ''; return; }
+        filePath.value = ''; filePathIn.value = '';
+        fetchFiles(t.cwd || ''); // 打开面板时直接落在终端当前目录
+      }
+    }
+    async function fetchFiles(dir) {
+      var t = tab.value; if (!t || !t.fileSession) return false;
+      fileLoading.value = true; fileSel.value = '';
+      var qp = dir !== undefined ? dir : (filePath.value || '');
+      try {
+        var r = await authFetch('/api/bastion/ls/' + t.hostId + '?session_id=' + encodeURIComponent(t.fileSession) + '&path=' + encodeURIComponent(qp));
+        var j = await r.json();
+        if (j.code === 0) {
+          fileList.value = (j.data && j.data.files) || [];
+          var realPath = (j.data && j.data.path) || (dir !== undefined ? dir : filePath.value);
+          filePath.value = realPath; filePathIn.value = realPath;
+          return true;
+        }
+        fileList.value = []; return false;
+      } catch(e) { fileList.value = []; return false; }
+      finally { fileLoading.value = false; }
+    }
+
+    // ===== 文件面板跟随终端当前目录 =====
+    // 后端 pty shell 与 SFTP 各自独立，没有「会话 cwd」概念，这里在前端跟踪 cd：
+    // 连接后探测一次 SFTP 家目录作基准，识别用户键入的 cd 命令并让文件面板跳过去。
+    function initSessionCwd(idx) {
+      var t = getRT(idx); if (!t || !t.fileSession) return;
+      authFetch('/api/bastion/ls/' + t.hostId + '?session_id=' + encodeURIComponent(t.fileSession) + '&path=')
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          if (j.code !== 0 || !j.data || !j.data.path) return;
+          t.homeDir = j.data.path;
+          if (t.cwd) return; // 期间用户已 cd，别把 cwd 覆盖回家目录
+          t.cwd = j.data.path;
+          if (fileOpen.value && tab.value === t) fetchFiles(t.cwd);
+        }).catch(function() {});
+    }
+    // 面板未打开时也校验一下目标目录，避免 cd 失败却记了错误路径
+    function probeDir(t, path) {
+      if (!t || !t.fileSession || !path) return Promise.resolve(true);
+      return authFetch('/api/bastion/ls/' + t.hostId + '?session_id=' + encodeURIComponent(t.fileSession) + '&path=' + encodeURIComponent(path))
+        .then(function(r) { return r.json(); })
+        .then(function(j) { return j.code === 0; })
+        .catch(function() { return true; });
+    }
+    function normalizeCdPath(p) {
+      var parts = String(p || '/').split('/'), out = [];
+      for (var i = 0; i < parts.length; i++) {
+        var s = parts[i];
+        if (!s || s === '.') continue;
+        if (s === '..') { if (out.length) out.pop(); continue; }
+        out.push(s);
+      }
+      return '/' + out.join('/');
+    }
+    function resolveCdPath(cwd, arg, home, prev) {
+      if (!arg || arg === '~') return home || cwd || '/';
+      if (arg === '-') return prev || cwd || '/';
+      if (arg.charAt(0) === '~') return normalizeCdPath((home || '/') + '/' + arg.slice(1));
+      if (arg.charAt(0) === '/') return normalizeCdPath(arg);
+      return normalizeCdPath((cwd || home || '/') + '/' + arg);
+    }
+    // 累积键入的命令行；跳过方向键等 CSI 序列，回车提交一行
+    function trackCdInput(idx, data) {
+      var t = getRT(idx); if (!t || typeof data !== 'string') return;
+      var buf = t.inputBuf || '';
+      for (var i = 0; i < data.length; i++) {
+        var ch = data.charAt(i), code = data.charCodeAt(i);
+        if (ch === '\u001b') {
+          if (data.charAt(i + 1) === '[') { i += 2; while (i < data.length && !/[A-Za-z~]/.test(data.charAt(i))) i++; }
+          else if (data.charAt(i + 1) === 'O') { i += 2; }
+          continue;
+        }
+        if (ch === '\r' || ch === '\n') { var line = buf.trim(); buf = ''; if (line) handleCdCommand(idx, line); continue; }
+        if (ch === '\u0003' || ch === '\u000c') { buf = ''; continue; }
+        if (ch === '\u007f' || ch === '\b') { buf = buf.slice(0, -1); continue; }
+        if (code >= 32 && code !== 127) buf += ch;
+      }
+      t.inputBuf = buf;
+    }
+    function handleCdCommand(idx, line) {
+      var m = /^\s*cd(?:\s+(.*))?\s*$/.exec(line);
+      if (!m) return;
+      var arg = (m[1] || '').split(/\s*(?:&&|\|\||;|\|)\s*/)[0].trim().replace(/^["'](.*)["']$/, '$1');
+      var t = getRT(idx); if (!t) return;
+      var old = t.cwd || '';
+      var target = resolveCdPath(old, arg, t.homeDir || '', t.prevCwd || '');
+      if (!target || target === old) return;
+      t.prevCwd = old; t.cwd = target;
+      // 等 shell 执行完再校验，cd 失败时回滚，不让面板跳到不存在的目录
+      setTimeout(function() { syncFilesToCwd(idx, target, old); }, 180);
+    }
+    async function syncFilesToCwd(idx, target, old) {
+      var t = getRT(idx);
+      if (!t || t.cwd !== target) return; // 期间又 cd 了，交给后一次处理
+      var ok = (fileOpen.value && tab.value === t) ? await fetchFiles(target) : await probeDir(t, target);
+      if (!ok) {
+        t.cwd = old; t.prevCwd = old;
+        if (fileOpen.value && tab.value === t) fetchFiles(old || '');
+      }
+    }
+    function fileGo(dir) { fetchFiles(dir); }
+    function fileRefresh() { fetchFiles(); }
+    function fileUp() { if (filePath.value === '/') return; var p = filePath.value.split('/').filter(Boolean); p.pop(); fetchFiles('/' + p.join('/')); }
+    // 单击：仅选中（文件或目录都高亮）；双击目录才进入
+    function selectFile(f) { fileSel.value = f.name; fileSelIsFile.value = !f.is_dir; }
+    function openFile(f) { if (f.is_dir) { fetchFiles(filePath.value === '/' ? '/' + f.name : filePath.value + '/' + f.name); } }
+    // 打开下载确认弹窗（先选择文件名再下载）
+    function openDownloadModal() {
+      var t = tab.value; if (!t || !t.fileSession) { showToast('\u5f53\u524d\u4e3b\u673a\u672a\u8fde\u63a5\uff0c\u65e0\u6cd5\u4e0b\u8f7d'); return; }
+      if (!fileSel.value || !fileSelIsFile.value) { showToast('\u8bf7\u5148\u9009\u62e9\u8981\u4e0b\u8f7d\u7684\u6587\u4ef6'); return; }
+      dlName.value = fileSel.value; dlVisible.value = true;
+    }
+    // 确认下载：入队并开始顺序下载
+    function confirmDownload() {
+      var t = tab.value; if (!t || !t.fileSession) { dlVisible.value = false; return; }
+      var name = (dlName.value || fileSel.value).trim(); if (!name) return;
+      var fp = filePath.value === '/' ? '/' + fileSel.value : filePath.value + '/' + fileSel.value;
+      dlVisible.value = false;
+      downloadTasks.value.push({ id: ++dlSeq, name: name, remote: fp, saveName: name, progress: 0, status: 'waiting', sub: '\u7b49\u5f85\u4e2d' });
+      runDownloadQueue();
+    }
+    function cancelDownloadTask(task) {
+      if (task.status === 'waiting') { task.status = 'canceled'; task.sub = '\u5df2\u53d6\u6d88'; return; }
+      if (task.status === 'uploading') { task.status = 'canceled'; task.sub = '\u53d6\u6d88\u4e2e...'; var x = dlXhrMap[task.id]; if (x) x.abort(); }
+    }
+    function removeDownloadTask(id) { downloadTasks.value = downloadTasks.value.filter(function(x) { return x.id !== id; }); }
+    function clearFinishedDownloads() { downloadTasks.value = downloadTasks.value.filter(function(x) { return x.status === 'waiting' || x.status === 'uploading'; }); }
+    // 顺序下载（避免多路拉取打满带宽/SSH 会话）；如需并行可改为 N worker 并发
+    async function runDownloadQueue() {
+      if (downloadRunning) return;
+      downloadRunning = true;
+      while (true) {
+        var task = downloadTasks.value.find(function(x) { return x.status === 'waiting'; });
+        if (!task) break;
+        await doDownloadTask(task);
+      }
+      downloadRunning = false;
+    }
+    // 单文件下载：XHR 流式读取显示进度；完成后触发浏览器原生保存对话框（位置由浏览器决定）
+    async function doDownloadTask(task) {
+      var t = tab.value; if (!t || !t.fileSession) { task.status = 'error'; task.sub = '\u4e3b\u673a\u672a\u8fde\u63a5'; return; }
+      if (task.status === 'canceled') { task.sub = '\u5df2\u53d6\u6d88'; return; }
+      var tk = localStorage.getItem(TOKEN_KEY) || '';
+      task.status = 'uploading'; task.progress = 0; task.sub = '\u8fde\u63a5\u4e2d...';
+      var url = '/api/bastion/download/' + t.hostId + '?session_id=' + t.fileSession + '&path=' + encodeURIComponent(task.remote) + '&token=' + encodeURIComponent(tk);
+      await new Promise(function(resolve) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url);
+        xhr.setRequestHeader('Authorization', tk);
+        xhr.responseType = 'blob';
+        xhr.onprogress = function(ev) { if (ev.lengthComputable) { task.progress = Math.min(99, Math.round(ev.loaded / ev.total * 100)); task.sub = '\u4e0b\u8f7d\u4e2d ' + formatSize(ev.loaded) + ' / ' + formatSize(ev.total); } else { task.sub = '\u4e0b\u8f7d\u4e2d ' + formatSize(ev.loaded); } };
+        xhr.onload = function() {
+          delete dlXhrMap[task.id];
+          if (xhr.status >= 200 && xhr.status < 300) {
+            var a = document.createElement('a'); a.href = URL.createObjectURL(xhr.response); a.download = task.saveName; a.click(); URL.revokeObjectURL(a.href);
+            task.status = 'done'; task.progress = 100; task.sub = '\u2705 \u5b8c\u6210';
+          } else { task.status = 'error'; task.sub = '\u274c HTTP ' + xhr.status; }
+          resolve();
+        };
+        xhr.onerror = function() { delete dlXhrMap[task.id]; if (task.status !== 'canceled') { task.status = 'error'; task.sub = '\u274c \u4e0b\u8f7d\u5931\u8d25'; } resolve(); };
+        xhr.onabort = function() { delete dlXhrMap[task.id]; task.status = 'canceled'; task.sub = '\u5df2\u53d6\u6d88'; resolve(); };
+        dlXhrMap[task.id] = xhr;
+        xhr.send();
+      });
+    }
+    // 上传暂停：等待中直接标记；进行中中断当前分片（保留断点，可继续）
+    function pauseUploadTask(task) {
+      if (task.status === 'uploading') { task.status = 'paused'; task.sub = '\u5df2\u6682\u505c'; var x = uploadXhrMap[task.id]; if (x) x.abort(); }
+      else if (task.status === 'waiting') { task.status = 'paused'; task.sub = '\u5df2\u6682\u505c(\u7b49\u5f85\u4e2d)'; }
+    }
+    // 上传继续：恢复为 waiting，队列会从断点续传
+    function resumeUploadTask(task) {
+      if (task.status !== 'paused') return;
+      task.status = 'waiting'; task.sub = '\u7b49\u5f85\u4e2d';
+      runUploadQueue();
+    }
+    function fileUpload(e) { enqueueUploads(e.target.files); e.target.value = ''; }
+    function onFileDrop(e) { enqueueUploads(e.dataTransfer.files); }
+    // 把选中的文件加入上传队列，并启动队列处理
+    function enqueueUploads(fs) {
+      var t = tab.value;
+      if (!t || !t.fileSession) { showToast('\u274c \u5f53\u524d\u4e3b\u673a\u672a\u8fde\u63a5\uff0c\u65e0\u6cd5\u4e0a\u4f20'); return; }
+      if (!fs || !fs.length) return;
+      for (var i = 0; i < fs.length; i++) {
+        uploadTasks.value.push({ id: ++uploadSeq, file: fs[i], name: fs[i].name, size: fs[i].size, progress: 0, status: 'waiting', sub: '\u7b49\u5f85\u4e2d' });
+      }
+      runUploadQueue();
+    }
+    // 并发上传调度器：按需启动 worker，最多同时传 uploadConcurrency 个文件
+    // 并发粒度=文件级（不同文件走不同 SFTP channel，互不干扰）；单文件分片仍串行（保证断点/MD5 正确）
+    function runUploadQueue() {
+      var active = uploadTasks.value.filter(function(x) { return x.status === 'uploading'; }).length;
+      while (active < uploadConcurrency.value) {
+        // 认领一个 waiting 任务（同步改状态，防止被其他 worker 重复领取）
+        var task = null;
+        for (var i = 0; i < uploadTasks.value.length; i++) {
+          if (uploadTasks.value[i].status === 'waiting') { task = uploadTasks.value[i]; break; }
+        }
+        if (!task) break;
+        task.status = 'uploading'; // 认领
+        active++;
+        (function(tk) { doUploadTask(tk).then(function() { runUploadQueue(); }); })(task); // 完成后补位
+      }
+      if (active === 0) fetchFiles(); // 全部空闲，刷新远端文件列表
+    }
+    // 取消单个任务：等待中直接标记，进行中中断当前分片
+    function cancelUploadTask(task) {
+      if (task.status === 'waiting') { task.status = 'canceled'; task.sub = '\u5df2\u53d6\u6d88'; return; }
+      if (task.status === 'uploading') { task.status = 'canceled'; task.sub = '\u53d6\u6d88\u4e2d...'; var x = uploadXhrMap[task.id]; if (x) x.abort(); }
+    }
+    // 从队列列表移除任务（仅用于已结束的任务）
+    function removeUploadTask(id) { uploadTasks.value = uploadTasks.value.filter(function(x) { return x.id !== id; }); }
+    // 清除所有已结束（完成/失败/取消/跳过）的任务
+    function clearFinishedUploads() { uploadTasks.value = uploadTasks.value.filter(function(x) { return x.status === 'waiting' || x.status === 'uploading'; }); }
+    // 计算整文件 MD5（spark-md5，分片读取，可与上传并行）
+    function computeFileMD5(file) {
+      return new Promise(function(resolve, reject) {
+        if (typeof SparkMD5 === 'undefined') { resolve(''); return; }
+        var spark = new SparkMD5.ArrayBuffer();
+        var chunks = Math.ceil(file.size / CHUNK_SIZE) || 1;
+        var current = 0, fr = new FileReader();
+        fr.onload = function(e) { spark.append(e.target.result); current++; if (current >= chunks) { resolve(spark.end()); } else { loadNext(); } };
+        fr.onerror = function() { reject(fr.error); };
+        function loadNext() { var s = current * CHUNK_SIZE, en = Math.min(s + CHUNK_SIZE, file.size); fr.readAsArrayBuffer(file.slice(s, en)); }
+        loadNext();
+      });
+    }
+    // 用 XHR 发送分片（支持进度与中断）；xhr 存入 uploadXhrMap[taskId] 供取消
+    function xhrPostChunk(url, blob, token, taskId, onProgress) {
+      return new Promise(function(resolve, reject) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+        xhr.setRequestHeader('Authorization', token);
+        xhr.upload.onprogress = function(ev) { if (ev.lengthComputable && onProgress) onProgress(ev); };
+        xhr.onload = function() { delete uploadXhrMap[taskId]; if (xhr.status >= 200 && xhr.status < 300) { try { resolve(JSON.parse(xhr.responseText)); } catch (e) { resolve({}); } } else { reject(new Error('HTTP ' + xhr.status)); } };
+        xhr.onerror = function() { delete uploadXhrMap[taskId]; reject(new Error('network error')); };
+        xhr.onabort = function() { delete uploadXhrMap[taskId]; reject(new Error('aborted')); };
+        uploadXhrMap[taskId] = xhr;
+        xhr.send(blob);
+      });
+    }
+    // 单个任务的分片上传：查询断点 -> 逐片写入 -> 末片校验 MD5
+    async function doUploadTask(task) {
+      var t = tab.value;
+      if (!t || !t.fileSession) { task.status = 'error'; task.sub = '\u4e3b\u673a\u672a\u8fde\u63a5'; return; }
+      if (task.status === 'canceled' || task.status === 'paused') { task.sub = task.status === 'canceled' ? '\u5df2\u53d6\u6d88' : '\u5df2\u6682\u505c'; return; }
+      var tk = localStorage.getItem(TOKEN_KEY) || '';
+      var file = task.file, name = task.name, total = task.size;
+      task.status = 'uploading'; task.progress = 0; task.sub = '\u51c6\u5907\u4e2d...';
+
+      var md5Promise = computeFileMD5(file);
+
+      // 断点续传：查询远端已上传大小，回退到分片边界（丢弃可能损坏的半片）
+      var uploaded = 0;
+      try {
+        var st = await authFetch('/api/bastion/upload-status/' + t.hostId + '?session_id=' + t.fileSession + '&path=' + encodeURIComponent(filePath.value) + '&filename=' + encodeURIComponent(name));
+        var sj = await st.json();
+        if (sj.code === 0 && sj.data) uploaded = sj.data.uploaded || 0;
+      } catch (e) {}
+      var startOffset = Math.floor(uploaded / CHUNK_SIZE) * CHUNK_SIZE;
+      if (startOffset > 0 && startOffset < total) task.sub = '\u4ece\u65ad\u70b9\u7ee7\u7eed ' + formatSize(startOffset);
+      // 文件已完整存在（重传场景）：跳过，避免清空已有文件
+      if (startOffset >= total && total > 0) { task.status = 'skipped'; task.progress = 100; task.sub = '\u5df2\u5b58\u5728\uff0c\u8df3\u8fc7'; return; }
+
+      var fileMD5 = await md5Promise;
+      var totalChunks = Math.ceil(total / CHUNK_SIZE) || 1;
+      var sent = startOffset;
+      var offsets = [];
+      for (var o = startOffset; o < total; o += CHUNK_SIZE) offsets.push(o);
+      if (offsets.length === 0) offsets.push(0); // 空文件也至少传一个分片以创建文件
+
+      for (var ci = 0; ci < offsets.length; ci++) {
+        if (task.status === 'canceled' || task.status === 'paused') { task.sub = task.status === 'canceled' ? '\u5df2\u53d6\u6d88' : '\u5df2\u6682\u505c'; return; }
+        var offset = offsets[ci];
+        var end = Math.min(offset + CHUNK_SIZE, total);
+        var blob = file.slice(offset, end);
+        var isLast = (ci === offsets.length - 1);
+        var qs = '/api/bastion/upload-chunk/' + t.hostId + '?session_id=' + t.fileSession + '&path=' + encodeURIComponent(filePath.value) + '&filename=' + encodeURIComponent(name) + '&offset=' + offset + (isLast && fileMD5 ? '&md5=' + fileMD5 : '');
+        try {
+          var baseSent = sent;
+          var j = await xhrPostChunk(qs, blob, tk, task.id, function(ev) {
+            if (total > 0 && ev.lengthComputable) task.progress = Math.min(99, Math.round((baseSent + ev.loaded) / total * 100));
+          });
+          sent = end;
+          task.progress = total > 0 ? Math.round(sent / total * 100) : 100;
+          task.sub = '\u5206\u7247 ' + (ci + 1) + '/' + totalChunks + ' \u00b7 ' + formatSize(sent) + ' / ' + formatSize(total);
+          if (isLast) {
+            if (j && j.code === 1) { task.status = 'error'; task.sub = '\u26a0 MD5 \u6821\u9a8c\u4e0d\u4e00\u81f4'; return; }
+            task.status = 'done'; task.progress = 100; task.sub = '\u2705 \u5b8c\u6210' + (fileMD5 ? ' \u00b7 MD5 \u901a\u8fc7' : '');
+          }
+        } catch (e) {
+          if (task.status === 'canceled') { task.sub = '\u5df2\u53d6\u6d88'; }
+          else if (task.status === 'paused') { task.sub = '\u5df2\u6682\u505c'; }
+          else { task.status = 'error'; task.sub = '\u274c \u4e0a\u4f20\u5931\u8d25'; }
+          return;
+        }
+      }
+    }
+    async function fileDelete(item, idx) {
+      var t = tab.value;
+      if (!t || !t.fileSession) { showToast('\u274c \u5f53\u524d\u4e3b\u673a\u672a\u8fde\u63a5\uff0c\u65e0\u6cd5\u5220\u9664'); return; }
+      var name, isDir;
+      if (typeof item === 'string') {
+        name = item;
+        // 操作栏按文件名定位（文件名可能乱码，但前端同源字符串可匹配）
+        idx = fileList.value.findIndex(function(x) { return x.name === name; });
+        isDir = false;
+      } else {
+        name = item.name; isDir = item.is_dir;
+        if (typeof idx !== 'number' || idx < 0) idx = fileList.value.indexOf(item);
+      }
+      if (typeof idx !== 'number' || idx < 0) { showToast('\u672a\u627e\u5230\u8be5\u6587\u4ef6\uff0c\u8bf7\u5237\u65b0\u540e\u91cd\u8bd5'); return; }
+      if (!confirm('\u786e\u5b9a\u5220\u9664 ' + (isDir ? '\u76ee\u5f55 ' : '') + name + '\uff1f' + (isDir ? '\uff08\u5305\u542b\u5176\u4e2d\u6240\u6709\u5b50\u6587\u4ef6\uff09' : ''))) return;
+      // 传 parent(当前目录) + idx(列表序号)，后端用原始文件名字节删除，规避乱码文件名 URL 回传失真
+      try {
+        var r = await authFetch('/api/bastion/rm/' + t.hostId + '?session_id=' + t.fileSession + '&parent=' + encodeURIComponent(filePath.value) + '&idx=' + idx, { method: 'DELETE' });
+        var j = await r.json();
+        if (j.code === 0) { showToast('\u2705 \u5df2\u5220\u9664 ' + name); if (fileSel.value === name) { fileSel.value = ''; fileSelIsFile.value = false; } fetchFiles(); }
+        else { showToast('\u274c ' + (j.msg || '\u5220\u9664\u5931\u8d25')); }
+      } catch (e) { showToast('\u274c \u5220\u9664\u8bf7\u6c42\u5931\u8d25'); }
+    }
+    function formatSize(b) { if (!b || b < 0) return '-'; if (b < 1024) return b + ' B'; if (b < 1048576) return (b / 1024).toFixed(1) + ' KB'; return (b / 1048576).toFixed(1) + ' MB'; }
+    function fileResizeStart(e) {
+      e.preventDefault();
+      var d = document.querySelector('.fd'); if (!d) return;
+      var sx = e.clientX, sw = d.offsetWidth;
+      var raf = null;
+      function mv(ev) { if (raf) return; raf = requestAnimationFrame(function() { raf = null; var w = Math.max(200, Math.min(600, sw - (ev.clientX - sx))); d.style.width = w + 'px'; d.style.transition = 'none'; }); }
+      function up() { if (raf) cancelAnimationFrame(raf); document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); d.style.transition = ''; fileWidth.value = d.offsetWidth; }
+      document.addEventListener('mousemove', mv);
+      document.addEventListener('mouseup', up);
+    }
+
+    watch(isSearching, function(searching) {
+      if (searching) {
+        savedCollapsed = Object.assign({}, collapsedGroups);
+        Object.keys(collapsedGroups).forEach(function(k) { collapsedGroups[k] = false; });
+      } else {
+        Object.keys(collapsedGroups).forEach(function(k) { collapsedGroups[k] = true; });
+        Object.assign(collapsedGroups, savedCollapsed);
+      }
+    });
+
+    // 切换标签 / 窗口重新获得焦点 / 点击终端区域：都把键盘焦点交回当前终端
+    watch(activeTab, function() { focusActiveTerm(true); });
+    window.addEventListener('focus', function() { focusActiveTerm(); });
+    document.addEventListener('mousedown', function(e) {
+      if (e.target && e.target.closest && e.target.closest('.tty-area')) focusActiveTerm(true);
+    }, true);
+
+    // 窗口 resize 时重新 fit 当前活动终端（使用已挂载的 fitAddon）
+    window.addEventListener('resize', function() {
+      var t = tab.value; if (t && t.xterm && t.fitAddon) { nextTick(function() { try { t.fitAddon.fit(); } catch(e) {} }); }
+    });
+    // 关闭窗口/标签页时释放所有 SSH 会话（fetch + keepalive 保证请求发出）
+    window.addEventListener('beforeunload', function() {
+      tabs.value.forEach(function(t) {
+        if (t.fileSession) {
+          var tk = localStorage.getItem(TOKEN_KEY) || '';
+          fetch('/api/bastion/disconnect', {
+            method: 'POST',
+            keepalive: true,
+            headers: { 'Content-Type': 'application/json', 'Authorization': tk },
+            body: JSON.stringify({ session_id: t.fileSession })
+          });
+        }
+      });
+    });
+    // 监听其他窗口登录：localStorage cloud_token 被写入时，自动关闭登录失效遮罩
+    window.addEventListener('storage', function(e) {
+      if (e.key === TOKEN_KEY && e.newValue) { loginExpired.value = false; }
+    });
+
+    onMounted(async function() { await refreshHosts(); restoreSession(); focusActiveTerm(); });
+
+    return { tabs: tabs, activeTab: activeTab, tab: tab, hostList: hostList, hostLoading: hostLoading, hostKeyword: hostKeyword, filteredHosts: filteredHosts, groupedHosts: groupedHosts, hostVisible: hostVisible, collapsedGroups: collapsedGroups, toggleGroup: toggleGroup, refreshHosts: refreshHosts, onHostClick: onHostClick, connVisible: connVisible, connName: connName, connNetwork: connNetwork, connPublicIp: connPublicIp, connPrivateIp: connPrivateIp, connSshPort: connSshPort, connCredId: connCredId, connCreds: connCreds, connLoading: connLoading, doConnect: doConnect, switchTab: switchTab, closeTab: closeTab, reconnectTab: reconnectTab, hasActiveTab: hasActiveTab, fileOpen: fileOpen, filePath: filePath, filePathIn: filePathIn, fileList: fileList, fileLoading: fileLoading, fileSel: fileSel, fileSelIsFile: fileSelIsFile, fileWidth: fileWidth, toggleFiles: toggleFiles, fileGo: fileGo, fileUp: fileUp, fileRefresh: fileRefresh, selectFile: selectFile, fileUpload: fileUpload, onFileDrop: onFileDrop, fileDelete: fileDelete, openFile: openFile, uploadTasks: uploadTasks, uploadDoneCount: uploadDoneCount, uploadHasFinished: uploadHasFinished, cancelUploadTask: cancelUploadTask, removeUploadTask: removeUploadTask, clearFinishedUploads: clearFinishedUploads, formatSize: formatSize, fileResizeStart: fileResizeStart, netDrpOpen: netDrpOpen, credDrpOpen: credDrpOpen, connCredDrpOpen: connCredDrpOpen, selCredLabel: selCredLabel, zoomFont: zoomFont, clearTerm: clearTerm, termToolsOpen: termToolsOpen, tabMenu: tabMenu, openTabMenu: openTabMenu, closeTabMenu: closeTabMenu, startRename: startRename, reconnectTabAt: reconnectTabAt, duplicateTab: duplicateTab, openDownloadModal: openDownloadModal, confirmDownload: confirmDownload, downloadTasks: downloadTasks, downloadDoneCount: downloadDoneCount, downloadHasFinished: downloadHasFinished, cancelDownloadTask: cancelDownloadTask, removeDownloadTask: removeDownloadTask, clearFinishedDownloads: clearFinishedDownloads, pauseUploadTask: pauseUploadTask, resumeUploadTask: resumeUploadTask, dlVisible: dlVisible, dlName: dlName, uploadConcurrency: uploadConcurrency, setUploadConcurrency: setUploadConcurrency, loginExpired: loginExpired };
+  }
+});
+    app.directive('focus', { mounted: function(el) { el.focus(); el.select(); } });
+    app.mount('#app');
+</script>
+</body>
+</html>

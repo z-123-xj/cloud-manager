@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>资源包 - 云管平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
+  <script src="/assets/js/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="text/x-template" id="page-template">
+    <div class="page-header">
+      <h2>资源包</h2>
+      <p class="page-desc text-gray text-sm" style="margin-top:4px;">实时查询阿里云计费服务的资源包实例（仅返回有效资源包），国内站与国际站自动区分</p>
+    </div>
+
+    <div class="cdn-layout">
+      <aside class="cdn-drawer nav-dir">
+        <div class="nav-dir-head" @click.stop>
+          <span class="nav-dir-title">选择账号</span>
+          <button class="nav-dir-close" type="button" @click.stop="navDirOpen = false" title="关闭">✕</button>
+        </div>
+        <div class="nav-dir-search" @click.stop>
+          <i class="fas fa-search"></i>
+          <input type="text" class="nav-dir-search-input" v-model="navDirKeyword" placeholder="输入平台或账号实时筛选" autocomplete="off" />
+          <button v-if="navDirKeyword" class="nav-dir-search-clear" type="button" title="清空" @click.stop="navDirKeyword = ''">✕</button>
+        </div>
+        <div class="cdn-drawer-title">筛选</div>
+        <button class="cdn-drawer-item" :class="{ active: !rpFilters.account }" @click="rpSelectAccount('')">全部实例</button>
+        <div class="cdn-drawer-group">阿里云</div>
+        <button v-for="a in rpAccounts" :key="a.account_id" class="cdn-drawer-item sub-2" :class="{ active: rpFilters.account === a.account_id }" @click="rpSelectAccount(a.account_id)" :title="a.account_id">
+          {{ a.account_name }}（{{ a.site === 'cn' ? '国内站' : '国际站' }}）
+        </button>
+      </aside>
+
+      <div class="cdn-main">
+        <div class="filter-bar">
+          <div class="filter-row">
+            <input type="text" class="input" placeholder="搜索实例ID / 商品名称 / 账号..." v-model="rpFilters.keyword" @keyup.enter="fetchResourcePackages" />
+            <label class="checkbox-inline"><input type="checkbox" v-model="rpFilters.onlyRemaining" /> 仅显示有剩余</label>
+            <button class="btn btn-primary" @click="fetchResourcePackages">查询</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="table table-fixed rp-table">
+            <thead>
+              <tr>
+                <th>产品名称</th>
+                <th>商品名称</th>
+                <th>资源包类型</th>
+                <th>资源包实例ID</th>
+                <th>状态</th>
+                <th>总量</th>
+                <th>剩余量</th>
+                <th>生效时间</th>
+                <th>失效时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="rpLoading"><td colspan="9" class="text-center py-40">加载中...</td></tr>
+              <tr v-else-if="filteredResourcePackages.length === 0"><td colspan="9" class="text-center py-40 text-gray">暂无资源包</td></tr>
+              <tr v-for="item in filteredResourcePackages" :key="item.instance_id">
+                <td>{{ productLabel(item.product_code || item.commodity_code) }}</td>
+                <td>{{ item.remark || '-' }}</td>
+                <td>{{ item.package_type || '-' }}</td>
+                <td class="text-mono text-sm">{{ item.instance_id }}</td>
+                <td><span class="tag" :class="item.status === 'Available' ? 'tag-success' : 'tag-default'">{{ rpStatusLabel(item.status) }}</span></td>
+                <td>{{ item.total_amount }} {{ item.total_unit }}</td>
+                <td>{{ item.remaining_amount }} {{ item.remaining_unit }}</td>
+                <td class="text-mono text-sm">{{ rpTime(item.effective_time) }}</td>
+                <td class="text-mono text-sm">{{ rpTime(item.expiry_time) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-if="rpErrors.length" class="text-warning text-sm" style="margin-top:8px;">以下账号获取失败：{{ rpErrors.map(e => e.account_name + '(' + (e.site === 'cn' ? '国内站' : '国际站') + ')').join('、') }}</p>
+      </div>
+    </div>
+  </script>
+
+  <script src="/assets/js/core.js?v=20261109f"></script>
+  <script src="/assets/js/pages/resource-packages.js?v=20261108i"></script>
+</body>
+</html>

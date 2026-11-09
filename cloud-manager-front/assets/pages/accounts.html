@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>云平台账号管理 - 云管平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
+  <script src="/assets/js/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="text/x-template" id="page-template">
+    <div class="page-header">
+      <h2>云平台账号管理</h2>
+      <button class="btn btn-primary btn-sm" @click="openAccountModal()">新增账号</button>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-row">
+        <input type="text" class="input" placeholder="搜索账号名称 / ID..." v-model="accountFilters.keyword" @keyup.enter="accountSearch" />
+        <select class="select" v-model="accountFilters.platform">
+          <option value="">全部平台</option>
+          <option value="aliyun">阿里云</option>
+          <option value="aws">AWS</option>
+          <option value="tencent">腾讯云</option>
+          <option value="cloudflare">Cloudflare</option>
+        </select>
+        <select class="select" v-model="accountFilters.site">
+          <option value="">全部站点</option>
+          <option value="cn">国内站</option>
+          <option value="intl">国际站</option>
+        </select>
+        <button class="btn btn-primary" @click="accountSearch">查询</button>
+        <button class="btn btn-default" @click="accountResetFilters">重置</button>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="table table-fixed account-table">
+        <thead>
+          <tr>
+            <th>ID</th><th>账号ID</th><th>平台</th><th>站点</th><th>账号名称</th>
+            <th>AccessKey</th><th>状态</th><th>更新时间</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="accountLoading"><td colspan="9" class="text-center py-40">加载中...</td></tr>
+          <tr v-else-if="accountList2.length === 0"><td colspan="9" class="text-center py-40 text-gray">暂无数据</td></tr>
+          <tr v-for="item in accountList2" :key="item.id">
+            <td>{{ item.id }}</td>
+            <td class="text-mono text-sm">{{ item.account_id }}</td>
+            <td><span class="tag tag-platform">{{ accountPlatformLabel(item.platform) }}</span></td>
+            <td>{{ accountSiteLabel(item.site) }}</td>
+            <td>{{ item.name }}</td>
+            <td class="text-mono text-sm">{{ item.access_key }}</td>
+            <td>
+              <span v-if="item.enabled" class="tag tag-success">启用</span>
+              <span v-else class="tag tag-default">禁用</span>
+            </td>
+            <td class="text-sm">{{ formatDate(item.updated_at) }}</td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-text btn-sm" @click="openAccountModal(item)">编辑</button>
+              <button class="btn btn-text btn-sm" style="color:#ea4335" @click="deleteAccount(item)">删除</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <span class="page-info">共 {{ accountTotal }} 条</span>
+      <div class="page-btns">
+        <button class="btn btn-default btn-sm" :disabled="accountPage <= 1" @click="accountGoPage(1)">首页</button>
+        <button class="btn btn-default btn-sm" :disabled="accountPage <= 1" @click="accountGoPage(accountPage - 1)">上一页</button>
+        <span class="page-jump">
+          第 <input type="number" class="input input-page" v-model.number="accountPageInput" @keyup.enter="accountJumpPage" min="1" :max="accountTotalPages" /> / {{ accountTotalPages }} 页
+        </span>
+        <button class="btn btn-default btn-sm" :disabled="accountPage >= accountTotalPages" @click="accountGoPage(accountPage + 1)">下一页</button>
+        <button class="btn btn-default btn-sm" :disabled="accountPage >= accountTotalPages" @click="accountGoPage(accountTotalPages)">末页</button>
+      </div>
+      <div class="page-size">
+        每页
+        <select class="select select-sm" v-model.number="accountSize" @change="accountOnSizeChange">
+          <option :value="10">10</option>
+          <option :value="20">20</option>
+          <option :value="50">50</option>
+          <option :value="100">100</option>
+        </select>
+        条
+      </div>
+    </div>
+
+    <Teleport to="body">
+      <div class="modal-overlay" v-if="accountModalVisible">
+        <div class="modal" style="max-width: 720px;">
+          <div class="modal-header">
+            <h2>{{ accountEditing ? '编辑账号' : '新增账号' }}</h2>
+            <button class="btn-close" @click="accountModalVisible = false">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-vertical">
+              <div class="form-group">
+                <label>平台 <span class="text-danger">*</span></label>
+                <select class="select" style="width:100%" v-model="accountForm.platform" @change="onAccountPlatformChange">
+                  <option value="aliyun">阿里云</option>
+                  <option value="aws">AWS</option>
+                  <option value="tencent">腾讯云</option>
+                  <option value="cloudflare">Cloudflare</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>账号名称 <span class="text-danger">*</span> <span class="text-gray text-sm">（用于平台筛选，必填）</span></label>
+                <input type="text" class="input input-full" v-model="accountForm.name" placeholder="便于识别的别名（必填）" />
+              </div>
+              <div class="form-group">
+                <label>{{ accountForm.platform === 'cloudflare' ? 'Account ID' : 'AccessKey' }} <span v-if="!accountEditing" class="text-danger">*</span><span v-else class="text-gray" style="font-weight:400">（留空则不修改）</span></label>
+                <input type="text" class="input input-full" v-model="accountForm.access_key" :placeholder="accountForm.platform === 'cloudflare' ? 'Cloudflare Account ID（32位十六进制）' : '云平台AccessKey'" />
+              </div>
+              <div class="form-group">
+                <label>{{ accountForm.platform === 'cloudflare' ? 'API Token' : 'AccessSecret' }} <span v-if="!accountEditing" class="text-danger">*</span><span v-else class="text-gray" style="font-weight:400">（留空则不修改；AccessKey 与 AccessSecret 须成对更换）</span></label>
+                <input type="text" class="input input-full" v-model="accountForm.access_secret" :placeholder="accountForm.platform === 'cloudflare' ? 'Cloudflare API Token（Zone:Read 权限）' : '云平台AccessSecret'" autocomplete="off" />
+                <p v-if="accountForm.platform === 'cloudflare'" class="text-gray text-sm" style="margin:6px 0 0;">
+                  Cloudflare 面板「My Profile → API Tokens」创建 Token，授予 Zone → Zone → Read；
+                  Account ID 即上方 AccessKey 栏（已按平台自动改名）填写内容，用于按账户过滤域名。
+                </p>
+              </div>
+              <div class="form-group" v-if="accountForm.platform !== 'cloudflare' && accountForm.platform !== 'aws'">
+                <label>站点 <span class="text-gray text-sm">（请按账号实际归属选择国内站/国际站）</span></label>
+                <select class="select" style="width:160px" v-model="accountForm.site">
+                  <option value="cn">国内站</option>
+                  <option value="intl">国际站</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>状态</label>
+                <select class="select" style="width:100%" v-model.number="accountForm.enabled">
+                  <option :value="1">启用</option>
+                  <option :value="0">禁用</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+              <button class="btn btn-default" @click="accountModalVisible = false">取消</button>
+              <button class="btn btn-primary" @click="saveAccount" :disabled="accountSaving">{{ accountSaving ? '保存中...' : '保存' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+  </script>
+
+  <script src="/assets/js/core.js?v=20261109f"></script>
+  <script src="/assets/js/pages/accounts.js?v=20261108i"></script>
+</body>
+</html>

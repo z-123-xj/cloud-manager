@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>域名管理 - 云管平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
+  <script src="/assets/js/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="text/x-template" id="page-template">
+    <div class="domain-page">
+      <div class="page-header">
+        <h2>域名管理</h2>
+        <div class="sync-btn-group">
+          <button class="btn btn-primary btn-sm" @click="openManual()" style="margin-right:8px" v-if="isAdmin">手动添加</button>
+          <button class="btn btn-primary btn-sm" @click="openSync">同步域名</button>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-value">{{ total }}</div>
+          <div class="stat-label">域名总数</div>
+        </div>
+        <div class="stat-card online">
+          <div class="stat-value">{{ stats.online }}</div>
+          <div class="stat-label">在线</div>
+        </div>
+        <div class="stat-card warning">
+          <div class="stat-value">{{ stats.expiringSoon }}</div>
+          <div class="stat-label">30天内到期</div>
+        </div>
+        <div class="stat-card danger">
+          <div class="stat-value">{{ stats.expired }}</div>
+          <div class="stat-label">已过期</div>
+        </div>
+        <div class="stat-card offline">
+          <div class="stat-value">{{ stats.offline }}</div>
+          <div class="stat-label">已下线</div>
+        </div>
+      </div>
+
+      <div class="cdn-layout">
+        <aside class="cdn-drawer nav-dir">
+          <div class="nav-dir-head">
+            <span class="nav-dir-title">选择账号</span>
+          </div>
+          <div class="nav-dir-search">
+            <i class="fas fa-search"></i>
+            <input type="text" class="nav-dir-search-input" v-model="navDirKeyword" placeholder="输入平台或账号实时筛选" autocomplete="off" />
+            <button v-if="navDirKeyword" class="nav-dir-search-clear" type="button" title="清空" @click.stop="navDirKeyword = ''">✕</button>
+          </div>
+          <div class="cdn-drawer-title">筛选</div>
+          <button class="cdn-drawer-item" :class="{ active: !filters.platform && !filters.account }" @click="selectFilter('', '')">全部域名</button>
+          <template v-for="pf in filteredPlatforms" :key="pf">
+            <div class="cdn-drawer-group" :class="{ active: filters.platform === pf && !filters.account }" @click="selectFilter(pf, '')">{{ platformLabel(pf) }}</div>
+            <button v-for="acc in accountsOfPlatform(pf)" :key="pf + '-' + acc" class="cdn-drawer-item sub-2" :class="{ active: filters.account === acc }" @click="selectFilter(pf, acc)" :title="acc">{{ acc }}</button>
+          </template>
+        </aside>
+
+        <div class="cdn-main">
+          <div class="filter-bar">
+            <div class="filter-row">
+              <input type="text" class="input" placeholder="搜索域名..." v-model="filters.keyword" @input="onKeywordInput" />
+              <select class="select" v-model="filters.is_offline">
+                <option value="">上下线:全部</option>
+                <option value="0">在线</option>
+                <option value="1">已下线</option>
+              </select>
+              <input type="date" class="input input-date" v-model="filters.expire_start" title="到期起始" />
+              <span class="date-sep">至</span>
+              <input type="date" class="input input-date" v-model="filters.expire_end" title="到期截止" />
+              <button class="btn btn-default" @click="resetFilters">重置</button>
+            </div>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="table table-fixed domain-table">
+              <thead>
+                <tr>
+                  <th v-if="colVisible('domain_name')">
+                    域名
+                    <span class="sort-icon" @click="toggleSort('domain_name')">{{ sortIcon('domain_name') }}</span>
+                  </th>
+                  <th v-if="colVisible('platform')">平台</th>
+                  <th v-if="colVisible('account_name')">账号</th>
+                  <th v-if="colVisible('owner')">所有者</th>
+                  <th v-if="colVisible('registration_date')">注册日期</th>
+                  <th v-if="colVisible('expiration_date')">到期日期</th>
+                  <th v-if="colVisible('expiration_days_left')">
+                    剩余天数
+                    <span class="sort-icon" @click="toggleSort('expiration_days_left')">{{ sortIcon('expiration_days_left') }}</span>
+                  </th>
+                  <th v-if="colVisible('auto_renew_enabled')" class="th-filter">
+                    自动续费
+                    <span class="filter-funnel" @click.stop="toggleColFilter('auto_renew')" :class="{ active: colFilterOpen === 'auto_renew' || colFilters.auto_renews.length > 0 }">⛽</span>
+                    <div class="funnel-dropdown" v-if="colFilterOpen === 'auto_renew'" @click.stop>
+                      <div class="funnel-options">
+                        <div class="funnel-opt funnel-opt-multi funnel-opt-all" :class="{ selected: isAllSelected(colFilters.auto_renews, ['1','0']) }" @click="toggleAllFilter(colFilters.auto_renews, ['1','0'])">
+                          <span class="funnel-check">{{ isAllSelected(colFilters.auto_renews, ['1','0']) ? '☑' : '☐' }}</span> 全选
+                        </div>
+                        <div class="funnel-opt funnel-opt-multi" :class="{ selected: colFilters.auto_renews.includes('1') }" @click="toggleFilterOption(colFilters.auto_renews, '1')">
+                          <span class="funnel-check">{{ colFilters.auto_renews.includes('1') ? '☑' : '☐' }}</span> 已开启
+                        </div>
+                        <div class="funnel-opt funnel-opt-multi" :class="{ selected: colFilters.auto_renews.includes('0') }" @click="toggleFilterOption(colFilters.auto_renews, '0')">
+                          <span class="funnel-check">{{ colFilters.auto_renews.includes('0') ? '☑' : '☐' }}</span> 未开启
+                        </div>
+                      </div>
+                      <div class="funnel-actions">
+                        <button class="btn btn-primary btn-xs" @click="applyColFilter(); colFilterOpen = null">确定</button>
+                        <button class="btn btn-default btn-xs" @click="colFilters.auto_renews = []; applyColFilter(); colFilterOpen = null">清除</button>
+                      </div>
+                    </div>
+                  </th>
+                  <th v-if="colVisible('status')">状态</th>
+                  <th v-if="colVisible('source')">来源</th>
+                  <th>
+                    操作
+                    <span class="col-picker-trigger" @click.stop="showColPicker = !showColPicker" title="选择显示列">⚙</span>
+                    <div class="col-picker-dropdown" v-if="showColPicker" @click.stop>
+                      <label v-for="col in allColumns" :key="col.key" class="col-picker-item">
+                        <input type="checkbox" v-model="col.visible" @change="saveColPrefs" /> {{ col.label }}
+                      </label>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="loading"><td :colspan="visibleColumns.length + 1" class="text-center py-40">加载中...</td></tr>
+                <tr v-else-if="domains.length === 0"><td :colspan="visibleColumns.length + 1" class="text-center py-40 text-gray">暂无数据</td></tr>
+                <tr v-for="item in domains" :key="item.id" :class="{ 'row-offline': item.is_offline === 1 }">
+                  <td v-if="colVisible('domain_name')">
+                    <a class="domain-link" @click="showDetail(item)">{{ item.domain_name }}</a>
+                    <div class="domain-remark" v-if="item.remark">{{ item.remark }}</div>
+                  </td>
+                  <td v-if="colVisible('platform')"><span class="tag tag-platform">{{ platformLabel(item.platform) }}</span></td>
+                  <td v-if="colVisible('account_name')">{{ item.account_name }}</td>
+                  <td v-if="colVisible('owner')">{{ item.owner || '-' }}</td>
+                  <td v-if="colVisible('registration_date')">{{ formatDate(item.registration_date) }}</td>
+                  <td v-if="colVisible('expiration_date')">{{ formatDate(item.expiration_date) }}</td>
+                  <td v-if="colVisible('expiration_days_left')"><span :class="daysClass(item.expiration_days_left)">{{ item.expiration_days_left }} 天</span></td>
+                  <td v-if="colVisible('auto_renew_enabled')"><span :class="item.auto_renew_enabled ? 'tag tag-success' : 'tag tag-default'">{{ item.auto_renew_enabled ? '是' : '否' }}</span></td>
+                  <td v-if="colVisible('status')">
+                    <span v-if="item.is_offline === 1" class="tag tag-offline">已下线</span>
+                    <span v-else-if="item.expiration_days_left < 0" class="tag tag-danger">已过期</span>
+                    <span v-else-if="item.expiration_days_left <= 30" class="tag tag-warning">即将到期</span>
+                    <span v-else class="tag tag-success">正常</span>
+                  </td>
+                  <td v-if="colVisible('source')"><span :class="item.source==='manual'?'tag tag-success':'tag tag-platform'">{{ item.source==='manual'?'手动':'同步' }}</span></td>
+                  <td>
+                    <button class="btn btn-text btn-sm" @click="openDnsResolve(item)">解析</button>
+                    <button class="btn btn-text btn-sm" @click="showDetail(item)">详情</button>
+                    <button class="btn btn-text btn-sm" v-if="isAdmin && item.source==='manual'" @click="openManual(item)">编辑</button>
+                    <button class="btn btn-text btn-sm btn-danger" v-if="isAdmin && item.source==='manual'" @click="deleteManual(item)">删除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pagination">
+            <span class="page-info">共 {{ total }} 条</span>
+            <div class="page-btns">
+              <button class="btn btn-default btn-sm" :disabled="page <= 1" @click="goPage(1)">首页</button>
+              <button class="btn btn-default btn-sm" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
+              <span class="page-jump">
+                第 <input type="number" class="input input-page" v-model.number="pageInput" @keyup.enter="jumpPage" min="1" :max="totalPages" /> / {{ totalPages }} 页
+              </span>
+              <button class="btn btn-default btn-sm" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
+              <button class="btn btn-default btn-sm" :disabled="page >= totalPages" @click="goPage(totalPages)">末页</button>
+            </div>
+            <div class="page-size">
+              每页
+              <select class="select select-sm" v-model.number="size" @change="onSizeChange">
+                <option :value="10">10</option>
+                <option :value="20">20</option>
+                <option :value="50">50</option>
+                <option :value="100">100</option>
+              </select>
+              条
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 域名详情 -->
+      <div class="modal-overlay" v-if="detailVisible">
+        <div class="modal" style="max-width:560px;">
+          <div class="modal-header">
+            <h2>域名详情</h2>
+            <button class="btn-close" @click="detailVisible = false">&times;</button>
+          </div>
+          <div class="modal-body" v-if="detail">
+            <div class="form-vertical">
+              <div class="form-group"><label>域名</label><div>{{ detail.domain_name }}</div></div>
+              <div class="form-group"><label>平台 / 账号</label><div>{{ platformLabel(detail.platform) }} / {{ detail.account_name || '-' }}</div></div>
+              <div class="form-group"><label>所有者</label><div>{{ detail.owner || '-' }}</div></div>
+              <div class="form-group"><label>注册 / 到期</label><div>{{ formatDate(detail.registration_date) }} ~ {{ formatDate(detail.expiration_date) }}</div></div>
+              <div class="form-group"><label>剩余天数 / 自动续费</label><div>{{ detail.expiration_days_left }} 天 / {{ detail.auto_renew_enabled ? '已开启' : '未开启' }}</div></div>
+              <div class="form-group"><label>备注</label><input type="text" class="input input-full" v-model="detail.remark" /></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-default" @click="detailVisible = false">关闭</button>
+            <button class="btn btn-primary" :disabled="remarkSaving" @click="saveRemark">{{ remarkSaving ? '保存中…' : '保存备注' }}</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 手动添加 / 编辑 -->
+      <div class="modal-overlay" v-if="manualVisible">
+        <div class="modal" style="max-width:520px;">
+          <div class="modal-header">
+            <h2>{{ manualEditing ? '编辑域名' : '手动添加域名' }}</h2>
+            <button class="btn-close" @click="manualVisible = false">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-vertical">
+              <div class="form-group"><label>域名 <span class="text-danger">*</span></label><input type="text" class="input input-full" v-model="manualForm.domain_name" /></div>
+              <div class="form-group"><label>平台</label><input type="text" class="input input-full" v-model="manualForm.platform" placeholder="如 aliyun / aws" /></div>
+              <div class="form-group"><label>账号</label><input type="text" class="input input-full" v-model="manualForm.account_name" /></div>
+              <div class="form-group"><label>所有者</label><input type="text" class="input input-full" v-model="manualForm.owner" /></div>
+              <div class="form-group"><label>注册日期</label><input type="date" class="input input-full" v-model="manualForm.registration_date" /></div>
+              <div class="form-group"><label>到期日期</label><input type="date" class="input input-full" v-model="manualForm.expiration_date" /></div>
+              <div class="form-group"><label>备注</label><input type="text" class="input input-full" v-model="manualForm.remark" /></div>
+              <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+                <input type="checkbox" v-model="manualForm.auto_renew_enabled" /> 自动续费
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+                <input type="checkbox" :checked="!!manualForm.is_offline" @change="manualForm.is_offline = $event.target.checked ? 1 : 0" /> 已下线
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-default" @click="manualVisible = false">取消</button>
+            <button class="btn btn-primary" :disabled="manualSaving" @click="saveManual">{{ manualSaving ? '保存中…' : '保存' }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </script>
+
+  <script src="/assets/js/core.js?v=20261109f"></script>
+  <script src="/assets/js/shared-sync.js?v=20261108i"></script>
+  <script src="/assets/js/pages/domains.js?v=20261108i"></script>
+</body>
+</html>

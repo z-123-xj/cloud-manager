@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>实例地域开通 - 云管平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
+  <script src="/assets/js/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="text/x-template" id="page-template">
+    <div class="page-header">
+      <h2>实例地域开通</h2>
+      <p class="page-desc text-gray text-sm" style="margin-top: 4px;">地域数据在系统启动时自动初始化，如须新增地域请修改代码中的地域种子数据</p>
+    </div>
+
+    <div class="filter-bar">
+      <div class="filter-row">
+        <select class="select" v-model="regionPlatform" @change="fetchRegions">
+          <option value="aliyun">阿里云</option>
+          <option value="tencent">腾讯云</option>
+          <option value="aws">AWS</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>地域ID</th>
+            <th>地域名称</th>
+            <th>API Endpoint</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="regionLoading"><td colspan="5" class="text-center py-40">加载中...</td></tr>
+          <tr v-else-if="regionList.length === 0"><td colspan="5" class="text-center py-40 text-gray">暂无地域数据，请检查地域种子初始化</td></tr>
+          <tr v-for="item in regionList" :key="item.id" :class="{ 'row-offline': !item.enabled }">
+            <td class="text-mono text-sm">{{ item.region_id }}</td>
+            <td>{{ item.region_name }}</td>
+            <td class="text-mono text-sm">{{ item.region_endpoint }}</td>
+            <td>
+              <span v-if="item.enabled" class="tag tag-success">已开通</span>
+              <span v-else class="tag tag-default">已关闭</span>
+            </td>
+            <td>
+              <button v-if="item.enabled" class="btn btn-text btn-sm" style="color:#ea4335" @click="toggleRegion(item, false)">关闭</button>
+              <button v-else class="btn btn-text btn-sm" style="color:#34a853" @click="toggleRegion(item, true)">开通</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </script>
+
+  <script src="/assets/js/core.js?v=20261109f"></script>
+  <script src="/assets/js/pages/regions.js?v=20261108i"></script>
+</body>
+</html>

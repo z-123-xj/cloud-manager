@@ -1,0 +1,2290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>云管平台</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
+  <script src="/assets/js/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261109k" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8/lib/xterm-addon-fit.js"></script>
+  <!-- 字体与图标库（DeepSeek 风格：Inter + Font Awesome） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ============ 登录页面 ============ -->
+    <div v-if="!isLoggedIn" class="login-page">
+      <header class="login-header">
+        <div class="login-brand">☁️ 云管平台</div>
+      </header>
+      <div class="login-main">
+        <div class="login-card">
+          <h2 class="login-card-title">登录账号</h2>
+          <form @submit.prevent="handleLogin" class="login-form">
+          <div class="form-group">
+            <label>用户名</label>
+            <input type="text" class="input input-full" ref="usernameInput" v-model="loginForm.username" placeholder="请输入用户名" autocomplete="off" readonly @focus="(e)=>e.target.removeAttribute('readonly')" @keydown.enter.prevent="passwordInput && passwordInput.focus()" />
+          </div>
+          <div class="form-group">
+            <label>密码</label>
+            <input type="password" class="input input-full" ref="passwordInput" v-model="loginForm.password" placeholder="请输入密码（至少6位）" autocomplete="off" readonly @focus="(e)=>e.target.removeAttribute('readonly')" minlength="6" @keydown.enter.prevent="captchaInput && captchaInput.focus()" />
+          </div>
+          <div class="form-group login-captcha-row">
+            <input type="text" class="input" ref="captchaInput" v-model="loginForm.captcha" placeholder="请输入验证码" maxlength="4" autocomplete="off" style="flex:1; text-transform:uppercase" @keydown.enter.prevent="handleLogin()" />
+            <img :src="captchaImg" @click="refreshCaptcha" class="login-captcha-img" title="点击刷新验证码" alt="验证码" />
+          </div>
+          <div class="login-error" v-if="loginError">{{ loginError }}</div>
+          <button type="submit" class="btn btn-primary btn-full" :disabled="loginLoading">
+            {{ loginLoading ? '登录中...' : '登 录' }}
+          </button>
+        </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 主页面（登录后） ============ -->
+    <template v-if="isLoggedIn">
+      <div class="layout">
+        <!-- 顶部横栏：左侧产品名，右侧用户管理/云平台账号/圆形头像下拉抽屉 -->
+        <header class="topbar" :class="{ collapsed: sidebarCollapsed }">
+          <div class="topbar-left">
+            <button class="ali-menu-btn" @click="drawerOpen = !drawerOpen" :title="drawerOpen ? '关闭导航抽屉' : '展开导航抽屉'"><span v-if="drawerOpen">✕</span><span v-else>☰</span></button>
+            <span class="ali-brand">云管平台</span>
+            <a class="ali-workbench-btn" :class="{ active: currentTab === 'home' }" :href="'/'" @click="navigate($event, '/')">⚙ 工作台</a>
+            <span class="page-title"><i class="fas" :class="currentPageIcon"></i> {{ currentPageTitle }}</span>
+          </div>
+          <div class="topbar-center">
+            <div class="ali-global-search" :class="{ open: globalSearchOpen }" @click.stop>
+              <div class="ali-global-search-box">
+                <i class="fas fa-search"></i>
+                <input ref="globalSearchInput" class="ali-global-search-input" type="text"
+                       v-model="globalSearchKeyword" placeholder="搜索产品、服务或功能"
+                       autocomplete="off" spellcheck="false"
+                       @focus="openGlobalSearch" @input="openGlobalSearch" @keydown="onGlobalSearchKey" />
+                <button v-if="globalSearchKeyword" class="ali-global-search-clear" type="button" title="清空" @click="clearGlobalSearch">✕</button>
+                <span v-else class="ali-global-search-kbd">Ctrl K</span>
+              </div>
+              <div class="ali-global-search-panel" v-if="globalSearchOpen">
+                <div class="ali-global-search-panel-head">{{ globalSearchKeyword.trim() ? '搜索结果' : '常用入口' }}</div>
+                <a class="ali-global-search-item" v-for="(item, idx) in globalSearchResults" :key="item.path"
+                   :class="{ active: globalSearchActive === idx }"
+                   @click="goGlobalSearch(item)" @mouseenter="globalSearchActive = idx">
+                  <i class="fas fa-external-link-alt"></i>
+                  <span>{{ item.label }}</span>
+                  <span class="group">{{ item.group }}</span>
+                </a>
+                <div class="ali-global-search-empty" v-if="!globalSearchResults.length">没有匹配的产品或服务</div>
+              </div>
+            </div>
+          </div>
+          <div class="topbar-right">
+            <a class="topbar-link" :class="{ active: currentTab === 'users' }" :href="'/assets/pages/users.html'" @click.prevent="goTab('/assets/pages/users.html')" v-if="isAdmin" title="用户管理">用户管理</a>
+            <a class="topbar-link" :class="{ active: currentTab === 'accounts' }" :href="'/assets/pages/accounts.html'" @click.prevent="goTab('/assets/pages/accounts.html')" v-if="isAdmin" title="云平台账号">云平台账号</a>
+            <div class="topbar-avatar-wrap" @click.stop="profileMenuOpen = !profileMenuOpen" title="个人中心">
+              <div class="topbar-avatar">{{ avatarText }}</div>
+              <span class="topbar-avatar-arrow" :class="{ open: profileMenuOpen }">▾</span>
+              <div class="topbar-dropdown" v-if="profileMenuOpen" @click.stop>
+                <div class="topbar-dropdown-head">
+                  <div class="topbar-dropdown-name">{{ username }}</div>
+                  <div class="topbar-dropdown-role">{{ userRoleLabel(userRole) }}</div>
+                </div>
+                <a class="topbar-dropdown-item" @click="openProfile">个人资料</a>
+                <a class="topbar-dropdown-item" @click="openChangePassword">修改密码</a>
+                <div class="topbar-dropdown-divider"></div>
+                <a class="topbar-dropdown-item danger" @click="logout">退出登录</a>
+              </div>
+            </div>
+          </div>
+        </header>
+        <!-- 侧边栏（结构对齐 1.html：分组 + nav-link + submenu，折叠只留图标；图标用 3.html 的 SVG） -->
+        <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
+          <a class="sidebar-logo" @click="navigate('/')" title="云管平台">
+            <svg class="logo-icon" viewBox="0 0 24 24"><path d="M17.5 19C19.9853 19 22 16.9853 22 14.5C22 12.1325 20.1647 10.1928 17.8371 10.0209C17.4106 6.59986 14.5143 4 11 4C7.13401 4 4 7.13401 4 11C4 11.1522 4.00486 11.3035 4.01445 11.4536C2.25911 12.0377 1 13.7015 1 15.6667C1 18.0609 2.93908 20 5.33333 20H17.5V19Z"/></svg>
+            <span>云管平台</span>
+          </a>
+          <nav class="sidebar-nav">
+            <!-- 主导航 -->
+            <div class="menu-section">
+              <div class="menu-section-title">主导航</div>
+              <ul class="nav-list">
+                <li class="nav-item">
+                  <a class="nav-link" :class="{ active: currentTab === 'home' }" :href="'/'" @click="navigate($event, '/')" title="首页">
+                    <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></span>
+                    <span class="link-text">首页</span>
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <!-- 域名服务 -->
+            <div class="menu-section">
+              <div class="menu-section-title">域名服务</div>
+              <ul class="nav-list">
+                <li class="nav-item" :class="{ open: sidebarDomainOpen }">
+                  <a class="nav-link" @click="sidebarDomainOpen = !sidebarDomainOpen" title="域名">
+                    <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z"/></svg></span>
+                    <span class="link-text">域名</span>
+                    <span class="arrow" :class="{ open: sidebarDomainOpen }">▶</span>
+                  </a>
+                  <ul class="submenu" v-show="sidebarDomainOpen">
+                    <li><a class="submenu-link" :class="{ active: currentTab === 'domains' }" :href="'/assets/pages/domains.html'" @click.prevent="goTab('/assets/pages/domains.html')" title="域名管理"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg></span>域名管理</a></li>
+                    <li><a class="submenu-link" :class="{ active: currentTab === 'dnsDomains' }" :href="'/assets/pages/dns.html'" @click.prevent="goTab('/assets/pages/dns.html')" title="DNS解析"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM4 17v-2h16v2H4zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM4 7V5h16v2H4z"/></svg></span>DNS解析</a></li>
+                    <li><a class="submenu-link" :class="{ active: currentTab === 'cdnDomains' }" :href="'/assets/pages/cdn.html'" @click.prevent="goTab('/assets/pages/cdn.html')" title="CDN域名"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg></span>CDN域名</a></li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+            <!-- 计算 -->
+            <div class="menu-section">
+              <div class="menu-section-title">计算</div>
+              <ul class="nav-list">
+                <li class="nav-item" :class="{ open: sidebarServerOpen }">
+                  <a class="nav-link" @click="sidebarServerOpen = !sidebarServerOpen" title="服务器">
+                    <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg></span>
+                    <span class="link-text">服务器</span>
+                    <span class="arrow" :class="{ open: sidebarServerOpen }">▶</span>
+                  </a>
+                  <ul class="submenu" v-show="sidebarServerOpen">
+                    <li><a class="submenu-link" :class="{ active: currentTab === 'ecs' }" :href="'/assets/pages/ecs.html'" @click.prevent="goTab('/assets/pages/ecs.html')" title="实例列表"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm4-3H4v2h2v-2z"/></svg></span>实例列表</a></li>
+                    <li><a class="submenu-link" :class="{ active: currentTab === 'regions' }" :href="'/assets/pages/regions.html'" @click.prevent="goTab('/assets/pages/regions.html')" title="实例地域开通"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg></span>实例地域开通</a></li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+            <!-- 资源 -->
+            <div class="menu-section">
+              <div class="menu-section-title">资源</div>
+              <ul class="nav-list">
+                <li class="nav-item" :class="{ open: sidebarResourceOpen }">
+                  <a class="nav-link" @click="sidebarResourceOpen = !sidebarResourceOpen" title="资源">
+                    <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg></span>
+                    <span class="link-text">资源</span>
+                    <span class="arrow" :class="{ open: sidebarResourceOpen }">▶</span>
+                  </a>
+                  <ul class="submenu" v-show="sidebarResourceOpen">
+                    <li><a class="submenu-link" :class="{ active: currentTab === 'resourcePackages' }" :href="'/assets/pages/resource-packages.html'" @click.prevent="goTab('/assets/pages/resource-packages.html')" title="资源包"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1 0-2 .9-2 2v3.01h2V4h16v3.01h2V4c0-1.1-1-2-2-2zM2 18c0 1.1 1 2 2 2h16c1 0 2-.9 2-2V7H2v11zM13 9l1 1 3-3-1-1-3 3zM3 13h8v2H3v-2zm0 4h8v2H3v-2zm10 0h8v2h-8v-2zm0-4h8v2h-8v-2z"/></svg></span>资源包</a></li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+            <!-- 安全运维 -->
+            <div class="menu-section" v-if="bastionEnabled">
+              <div class="menu-section-title">安全运维</div>
+              <ul class="nav-list">
+                <li class="nav-item" :class="{ open: sidebarBastionOpen }">
+                  <a class="nav-link" @click="sidebarBastionOpen = !sidebarBastionOpen" title="堡垒机">
+                    <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg></span>
+                    <span class="link-text">堡垒机</span>
+                    <span class="arrow" :class="{ open: sidebarBastionOpen }">▶</span>
+                  </a>
+                  <ul class="submenu" v-show="sidebarBastionOpen">
+                    <li><a class="submenu-link" :class="{ active: currentTab === 'bastionAssets' }" :href="'/assets/pages/bastion.html'" @click.prevent="goTab('/assets/pages/bastion.html')" title="资产"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span>资产</a></li>
+                    <li><a class="submenu-link" :class="{ active: currentTab === 'bastionGroups' }" :href="'/bastion/groups'" @click="navigate($event, '/bastion/groups')" v-if="isAdmin" title="用户组"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></span>用户组</a></li>
+                    <li><a class="submenu-link" :class="{ active: currentTab === 'bastionCredentials' }" :href="'/bastion/credentials'" @click="navigate($event, '/bastion/credentials')" v-if="isAdmin" title="凭证"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></span>凭证</a></li>
+                    <li><a class="submenu-link" :href="'/assets/pages/batch-exec.html'" @click.prevent="goTab('/assets/pages/batch-exec.html')" title="批量执行"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>批量执行</a></li>
+                    <li><a class="submenu-link" href="/assets/pages/logs.html?v=20261108i" title="日志排查"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg></span>日志排查</a></li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+          </nav>
+        </aside>
+
+        <!-- 主体内容 -->
+        <main class="main-content">
+
+          <!-- ========== 首页 ========== -->
+          <template v-if="currentTab === 'home'">
+            <div class="page-header">
+              <h2>工作台</h2>
+              <span class="wb-hero-status" :class="homeStats.backendAlive ? 'ok' : 'bad'">
+                <span class="dot" :class="homeStats.backendAlive ? 'dot-online' : 'dot-danger'"></span>
+                {{ homeStats.backendAlive ? '服务运行正常' : '后台服务不可用' }}
+              </span>
+            </div>
+
+            <div class="wb-hero">
+              <div class="wb-hero-text">
+                <div class="wb-hero-title">我的资源</div>
+                <div class="wb-hero-desc">资源总览与快捷入口 · 点击左上角 ☰ 打开全部产品与服务</div>
+              </div>
+            </div>
+
+            <div class="wb-blocks">
+              <div class="wb-block">
+                <div class="wb-block-title">最近访问 <a @click="drawerCategory = 'all'; drawerOpen = true">查看更多</a></div>
+                <div class="wb-chips">
+                  <a class="wb-chip" v-for="v in recentVisits" :key="v.path" @click="goTab(v.path)">{{ v.name }}</a>
+                </div>
+              </div>
+              <div class="wb-block">
+                <div class="wb-block-title">我的收藏</div>
+                <div class="wb-chips">
+                  <a class="wb-chip" v-for="v in favorites" :key="v.path" @click="goTab(v.path)">{{ v.name }}</a>
+                </div>
+              </div>
+            </div>
+
+            <div class="wb-block wb-block-actions">
+              <div class="wb-block-title">常用操作</div>
+              <div class="wb-chips">
+                <a class="wb-chip" @click="navigate('/domains'); setTimeout(() => syncDomains(), 100)">同步域名</a>
+                <a class="wb-chip" @click="goTab('/assets/pages/ecs.html')">同步ECS</a>
+                <a class="wb-chip" @click="drawerCategory = 'all'; drawerOpen = true">全部产品与服务</a>
+              </div>
+            </div>
+
+            <div class="wb-group" v-for="g in workbenchGroups" :key="g.key">
+              <div class="wb-group-head"><i class="ali-group-icon" :class="g.icon"></i>{{ g.title }}</div>
+              <div class="wb-group-grid">
+                <a class="wb-res-card" v-for="item in g.items" :key="g.key + item.label" @click="goTab(item.path)">
+                  <span class="wb-res-title">{{ item.label }} <span class="ali-arrow">›</span></span>
+                  <span class="wb-res-meta">{{ item.count }}</span>
+                </a>
+              </div>
+            </div>
+
+            <div class="home-cards">
+              <div class="home-card" @click="navigate('/domains')">
+                <div class="home-card-icon">🌐</div>
+                <div class="home-card-info">
+                  <div class="home-card-value">{{ homeStats.domainTotal }}</div>
+                  <div class="home-card-label">域名总数</div>
+                </div>
+                <div class="home-card-detail">
+                  <div class="home-detail-row"><span class="dot dot-online"></span>在线 {{ homeStats.domainOnline }}</div>
+                  <div class="home-detail-row"><span class="dot dot-warning"></span>即将到期 {{ homeStats.domainExpiring }}</div>
+                  <div class="home-detail-row"><span class="dot dot-danger"></span>已过期 {{ homeStats.domainExpired }}</div>
+                </div>
+              </div>
+
+              <div class="home-card" style="cursor:pointer;" @click="goTab('/assets/pages/ecs.html')">
+                <div class="home-card-icon">💻</div>
+                <div class="home-card-info">
+                  <div class="home-card-value">{{ homeStats.ecsTotal }}</div>
+                  <div class="home-card-label">ECS实例总数</div>
+                </div>
+                <div class="home-card-detail">
+                  <div class="home-detail-row"><span class="dot dot-online"></span>运行中 {{ homeStats.ecsOnline }}</div>
+                  <div class="home-detail-row"><span class="dot dot-offline"></span>已停止 {{ homeStats.ecsOffline }}</div>
+                </div>
+              </div>
+
+              <div class="home-card">
+                <div class="home-card-icon">☁️</div>
+                <div class="home-card-info">
+                  <div class="home-card-value">{{ homeStats.accountCount }}</div>
+                  <div class="home-card-label">云账号</div>
+                </div>
+                <div class="home-card-detail">
+                  <div class="home-detail-row"><span class="dot dot-online"></span>阿里云</div>
+                </div>
+              </div>
+
+              <div class="home-card">
+                <div class="home-card-icon">🖥️</div>
+                <div class="home-card-info">
+                  <div class="home-card-value">
+                    <span :style="{ color: homeStats.backendAlive ? '#34a853' : '#ea4335' }">{{ homeStats.backendAlive ? '在线' : '离线' }}</span>
+                  </div>
+                  <div class="home-card-label">后台服务</div>
+                </div>
+                <div class="home-card-detail">
+                  <div class="home-detail-row"><span class="dot" :class="homeStats.backendAlive ? 'dot-online' : 'dot-danger'"></span>{{ homeStats.backendAlive ? '运行正常' : '无法连接' }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="home-section">
+              <h3 class="home-section-title">快捷操作</h3>
+              <div class="home-actions">
+                <button class="btn btn-primary" @click="navigate('/domains'); setTimeout(() => syncDomains(), 100)">同步域名</button>
+                <button class="btn btn-primary" @click="goTab('/assets/pages/ecs.html')">同步ECS</button>
+              </div>
+            </div>
+          </template>
+
+          <!-- ========== 实例地域开通页面 ========== -->
+          <template v-if="currentTab === 'regions'">
+            <div class="page-header">
+              <h2>实例地域开通</h2>
+              <p class="page-desc text-gray text-sm" style="margin-top: 4px;">地域数据在系统启动时自动初始化，如须新增地域请修改代码中的地域种子数据</p>
+            </div>
+
+            <div class="filter-bar">
+              <div class="filter-row">
+                <select class="select" v-model="regionPlatform" @change="fetchRegions">
+                  <option value="aliyun">阿里云</option>
+                  <option value="tencent">腾讯云</option>
+                  <option value="aws">AWS</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-wrapper">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>地域ID</th>
+                    <th>地域名称</th>
+                    <th>API Endpoint</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="regionLoading"><td colspan="5" class="text-center py-40">加载中...</td></tr>
+                  <tr v-else-if="regionList.length === 0"><td colspan="5" class="text-center py-40 text-gray">暂无地域数据，请检查地域种子初始化</td></tr>
+                  <tr v-for="item in regionList" :key="item.id" :class="{ 'row-offline': !item.enabled }">
+                    <td class="text-mono text-sm">{{ item.region_id }}</td>
+                    <td>{{ item.region_name }}</td>
+                    <td class="text-mono text-sm">{{ item.region_endpoint }}</td>
+                    <td>
+                      <span v-if="item.enabled" class="tag tag-success">已开通</span>
+                      <span v-else class="tag tag-default">已关闭</span>
+                    </td>
+                    <td>
+                      <button v-if="item.enabled" class="btn btn-text btn-sm" style="color:#ea4335" @click="toggleRegion(item, false)">关闭</button>
+                      <button v-else class="btn btn-text btn-sm" style="color:#34a853" @click="toggleRegion(item, true)">开通</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <!-- ========== 资源包页面 ========== -->
+          <template v-if="currentTab === 'resourcePackages'">
+            <div class="page-header">
+              <h2>资源包</h2>
+              <p class="page-desc text-gray text-sm" style="margin-top:4px;">实时查询阿里云计费服务的资源包实例（仅返回有效资源包），国内站与国际站自动区分</p>
+            </div>
+
+            <div class="cdn-layout">
+              <!-- 左侧抽屉：按账号筛选 -->
+              <aside class="cdn-drawer nav-dir">
+                <div class="nav-dir-head" @click.stop>
+                  <span class="nav-dir-title">选择账号</span>
+                  <button class="nav-dir-close" type="button" @click.stop="navDirOpen = false" title="关闭">✕</button>
+                </div>
+                <div class="nav-dir-search" @click.stop>
+                  <i class="fas fa-search"></i>
+                  <input type="text" class="nav-dir-search-input" v-model="navDirKeyword" placeholder="输入平台或账号实时筛选" autocomplete="off" />
+                  <button v-if="navDirKeyword" class="nav-dir-search-clear" type="button" title="清空" @click.stop="navDirKeyword = ''">✕</button>
+                </div>
+                <div class="cdn-drawer-title">筛选</div>
+                <button class="cdn-drawer-item" :class="{ active: !rpFilters.account }" @click="rpSelectAccount('')">全部实例</button>
+                <div class="cdn-drawer-group">阿里云</div>
+                <button v-for="a in rpAccounts" :key="a.account_id" class="cdn-drawer-item sub-2" :class="{ active: rpFilters.account === a.account_id }" @click="rpSelectAccount(a.account_id)" :title="a.account_id">
+                  {{ a.account_name }}（{{ a.site === 'cn' ? '国内站' : '国际站' }}）
+                </button>
+              </aside>
+
+              <div class="cdn-main">
+                <div class="filter-bar">
+                  <div class="filter-row">
+                    <input type="text" class="input" placeholder="搜索实例ID / 商品名称 / 账号..." v-model="rpFilters.keyword" @keyup.enter="fetchResourcePackages" />
+                    <label class="checkbox-inline"><input type="checkbox" v-model="rpFilters.onlyRemaining" /> 仅显示有剩余</label>
+                    <button class="btn btn-primary" @click="fetchResourcePackages">查询</button>
+                  </div>
+                </div>
+
+                <div class="table-wrapper">
+                  <table class="table table-fixed rp-table">
+                    <thead>
+                      <tr>
+                        <th>产品名称</th>
+                        <th>商品名称</th>
+                        <th>资源包类型</th>
+                        <th>资源包实例ID</th>
+                        <th>状态</th>
+                        <th>总量</th>
+                        <th>剩余量</th>
+                        <th>生效时间</th>
+                        <th>失效时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-if="rpLoading"><td colspan="9" class="text-center py-40">加载中...</td></tr>
+                      <tr v-else-if="filteredResourcePackages.length === 0"><td colspan="9" class="text-center py-40 text-gray">暂无资源包</td></tr>
+                      <tr v-for="item in filteredResourcePackages" :key="item.instance_id">
+                        <td>{{ productLabel(item.product_code || item.commodity_code) }}</td>
+                        <td>{{ item.remark || '-' }}</td>
+                        <td>{{ item.package_type || '-' }}</td>
+                        <td class="text-mono text-sm">{{ item.instance_id }}</td>
+                        <td><span class="tag" :class="item.status === 'Available' ? 'tag-success' : 'tag-default'">{{ rpStatusLabel(item.status) }}</span></td>
+                        <td>{{ item.total_amount }} {{ item.total_unit }}</td>
+                        <td>{{ item.remaining_amount }} {{ item.remaining_unit }}</td>
+                        <td class="text-mono text-sm">{{ rpTime(item.effective_time) }}</td>
+                        <td class="text-mono text-sm">{{ rpTime(item.expiry_time) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p v-if="rpErrors.length" class="text-warning text-sm" style="margin-top:8px;">以下账号获取失败：{{ rpErrors.map(e => e.account_name + '(' + (e.site === 'cn' ? '国内站' : '国际站') + ')').join('、') }}</p>
+              </div>
+            </div>
+          </template>
+
+          <!-- ========== 域名页面 ========== -->
+          <div class="domain-page" v-if="currentTab === 'domains'">
+            <div class="page-header">
+              <h2>域名管理</h2>
+              <div class="sync-btn-group">
+                <button class="btn btn-primary btn-sm" @click="openDomainManualModal()" style="margin-right:8px" v-if="isAdmin">手动添加</button>
+                <button class="btn btn-primary btn-sm" @click="openResourceSync('domains', '域名注册列表')">同步域名</button>
+                <span v-if="domainSyncLabel" class="btn btn-sync btn-sm" :class="domainSyncRunning ? 'btn-sync-running' : domainSyncError ? 'btn-sync-error' : 'btn-sync-done'">
+                  {{ domainSyncRunning ? '🔄' : domainSyncError ? '❌' : '✅' }} {{ domainSyncLabel }}
+                </span>
+              </div>
+            </div>
+
+            <!-- 统计卡片 -->
+            <div class="stats-row">
+              <div class="stat-card">
+                <div class="stat-value">{{ total }}</div>
+                <div class="stat-label">域名总数</div>
+              </div>
+              <div class="stat-card online">
+                <div class="stat-value">{{ stats.online }}</div>
+                <div class="stat-label">在线</div>
+              </div>
+              <div class="stat-card warning">
+                <div class="stat-value">{{ stats.expiringSoon }}</div>
+                <div class="stat-label">30天内到期</div>
+              </div>
+              <div class="stat-card danger">
+                <div class="stat-value">{{ stats.expired }}</div>
+                <div class="stat-label">已过期</div>
+              </div>
+              <div class="stat-card offline">
+                <div class="stat-value">{{ stats.offline }}</div>
+                <div class="stat-label">已下线</div>
+              </div>
+            </div>
+
+            <div class="cdn-layout">
+              <!-- 左侧抽屉：按平台/账号筛选 -->
+              <aside class="cdn-drawer nav-dir">
+                <div class="nav-dir-head" @click.stop>
+                  <span class="nav-dir-title">选择账号</span>
+                  <button class="nav-dir-close" type="button" @click.stop="navDirOpen = false" title="关闭">✕</button>
+                </div>
+                <div class="nav-dir-search" @click.stop>
+                  <i class="fas fa-search"></i>
+                  <input type="text" class="nav-dir-search-input" v-model="navDirKeyword" placeholder="输入平台或账号实时筛选" autocomplete="off" />
+                  <button v-if="navDirKeyword" class="nav-dir-search-clear" type="button" title="清空" @click.stop="navDirKeyword = ''">✕</button>
+                </div>
+                <div class="cdn-drawer-title">筛选</div>
+                <button class="cdn-drawer-item" :class="{ active: !filters.platform && !filters.account }" @click="domainSelectFilter('', '')">全部域名</button>
+                <template v-for="pf in domainPlatformList" :key="pf">
+                  <div class="cdn-drawer-group" :class="{ active: filters.platform === pf && !filters.account }" @click="domainSelectFilter(pf, '')">{{ domainPlatformLabel(pf) }}</div>
+                  <button v-for="acc in domainAccountsOfPlatform(pf)" :key="acc" class="cdn-drawer-item sub-2" :class="{ active: filters.account === acc }" @click="domainSelectFilter(pf, acc)" :title="acc">{{ acc }}</button>
+                </template>
+              </aside>
+
+              <div class="cdn-main">
+                <!-- 筛选栏 -->
+                <div class="filter-bar">
+                  <div class="filter-row">
+                    <input type="text" class="input" placeholder="搜索域名..." v-model="filters.keyword" @keyup.enter="search" />
+                <select class="select" v-model="filters.is_offline">
+                  <option value="">上下线:全部</option>
+                  <option value="0">在线</option>
+                  <option value="1">已下线</option>
+                </select>
+                <input type="date" class="input input-date" v-model="filters.expire_start" title="到期起始" />
+                <span class="date-sep">至</span>
+                <input type="date" class="input input-date" v-model="filters.expire_end" title="到期截止" />
+                <button class="btn btn-primary" @click="search">查询</button>
+                <button class="btn btn-default" @click="resetFilters">重置</button>
+              </div>
+            </div>
+
+            <!-- 表格 -->
+            <div class="table-wrapper">
+              <table class="table table-fixed domain-table">
+                <thead>
+                  <tr>
+                    <th v-if="colVisible('domain_name')">
+                      域名
+                      <span class="sort-icon" @click="toggleSort('domain_name')">{{ getSortIcon('domain_name') }}</span>
+                    </th>
+                    <th v-if="colVisible('platform')">平台</th>
+                    <th v-if="colVisible('account_name')">账号</th>
+                    <th v-if="colVisible('owner')">所有者</th>
+                    <th v-if="colVisible('registration_date')">注册日期</th>
+                    <th v-if="colVisible('expiration_date')">到期日期</th>
+                    <th v-if="colVisible('expiration_days_left')">
+                      剩余天数
+                      <span class="sort-icon" @click="toggleSort('expiration_days_left')">{{ getSortIcon('expiration_days_left') }}</span>
+                    </th>
+                    <th v-if="colVisible('auto_renew_enabled')" class="th-filter">
+                      自动续费
+                      <span class="filter-funnel" @click.stop="toggleColFilter('auto_renew')" :class="{ active: colFilterOpen === 'auto_renew' || colFilters.auto_renews.length > 0 }">⛽</span>
+                      <div class="funnel-dropdown" v-if="colFilterOpen === 'auto_renew'" @click.stop>
+                        <div class="funnel-options">
+                          <div class="funnel-opt funnel-opt-multi funnel-opt-all" :class="{ selected: isColFilterAllSelected(colFilters.auto_renews, ['1','0']) }" @click="toggleColFilterAll(colFilters.auto_renews, ['1','0'])">
+                            <span class="funnel-check">{{ isColFilterAllSelected(colFilters.auto_renews, ['1','0']) ? '☑' : '☐' }}</span> 全选
+                          </div>
+                          <div class="funnel-opt funnel-opt-multi" :class="{ selected: isColFilterSelected(colFilters.auto_renews, '1') }" @click="toggleColFilterOption(colFilters.auto_renews, '1')">
+                            <span class="funnel-check">{{ isColFilterSelected(colFilters.auto_renews, '1') ? '☑' : '☐' }}</span> 已开启
+                          </div>
+                          <div class="funnel-opt funnel-opt-multi" :class="{ selected: isColFilterSelected(colFilters.auto_renews, '0') }" @click="toggleColFilterOption(colFilters.auto_renews, '0')">
+                            <span class="funnel-check">{{ isColFilterSelected(colFilters.auto_renews, '0') ? '☑' : '☐' }}</span> 未开启
+                          </div>
+                        </div>
+                        <div class="funnel-actions">
+                          <button class="btn btn-primary btn-xs" @click="applyColFilter(); colFilterOpen = null">确定</button>
+                          <button class="btn btn-default btn-xs" @click="colFilters.auto_renews = []; applyColFilter(); colFilterOpen = null">清除</button>
+                        </div>
+                      </div>
+                    </th>
+                    <th v-if="colVisible('status')">状态</th>
+                    <th v-if="colVisible('source')">来源</th>
+                    <th>
+                      操作
+                      <span class="col-picker-trigger" @click.stop="showColPicker = !showColPicker" title="选择显示列">⚙</span>
+                      <div class="col-picker-dropdown" v-if="showColPicker" @click.stop>
+                        <label v-for="col in allColumns" :key="col.key" class="col-picker-item">
+                          <input type="checkbox" v-model="col.visible" @change="saveColPrefs" /> {{ col.label }}
+                        </label>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="loading"><td :colspan="visibleColumns.length + 1" class="text-center py-40">加载中...</td></tr>
+                  <tr v-else-if="domains.length === 0"><td :colspan="visibleColumns.length + 1" class="text-center py-40 text-gray">暂无数据</td></tr>
+                  <tr v-for="item in domains" :key="item.id" :class="{ 'row-offline': item.is_offline === 1 }">
+                    <td v-if="colVisible('domain_name')">
+                      <a class="domain-link" @click="showDetail(item)">{{ item.domain_name }}</a>
+                      <div class="domain-remark" v-if="item.remark">{{ item.remark }}</div>
+                    </td>
+                    <td v-if="colVisible('platform')"><span class="tag tag-platform">{{ item.platform }}</span></td>
+                    <td v-if="colVisible('account_name')">{{ item.account_name }}</td>
+                    <td v-if="colVisible('owner')">{{ item.owner || '-' }}</td>
+                    <td v-if="colVisible('registration_date')">{{ formatDate(item.registration_date) }}</td>
+                    <td v-if="colVisible('expiration_date')">{{ formatDate(item.expiration_date) }}</td>
+                    <td v-if="colVisible('expiration_days_left')"><span :class="getDaysClass(item.expiration_days_left)">{{ item.expiration_days_left }} 天</span></td>
+                    <td v-if="colVisible('auto_renew_enabled')"><span :class="item.auto_renew_enabled ? 'tag tag-success' : 'tag tag-default'">{{ item.auto_renew_enabled ? '是' : '否' }}</span></td>
+                    <td v-if="colVisible('status')">
+                      <span v-if="item.is_offline === 1" class="tag tag-offline">已下线</span>
+                      <span v-else-if="item.expiration_days_left < 0" class="tag tag-danger">已过期</span>
+                      <span v-else-if="item.expiration_days_left <= 30" class="tag tag-warning">即将到期</span>
+                      <span v-else class="tag tag-success">正常</span>
+                    </td>
+                    <td v-if="colVisible('source')"><span :class="item.source==='manual'?'tag tag-success':'tag tag-platform'">{{ item.source==='manual'?'手动':'同步' }}</span></td>
+                    <td>
+                      <button class="btn btn-text btn-sm" @click="openDnsResolve(item)">解析</button>
+                      <button class="btn btn-text btn-sm" @click="showDetail(item)">详情</button>
+                      <button class="btn btn-text btn-sm" v-if="isAdmin && item.source==='manual'" @click="openDomainManualModal(item)">编辑</button>
+                      <button class="btn btn-text btn-sm btn-danger" v-if="isAdmin && item.source==='manual'" @click="deleteDomainManual(item)">删除</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination">
+              <span class="page-info">共 {{ total }} 条</span>
+              <div class="page-btns">
+                <button class="btn btn-default btn-sm" :disabled="page <= 1" @click="goPage(1)">首页</button>
+                <button class="btn btn-default btn-sm" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
+                <span class="page-jump">
+                  第 <input type="number" class="input input-page" v-model.number="pageInput" @keyup.enter="jumpPage" min="1" :max="totalPages" /> / {{ totalPages }} 页
+                </span>
+                <button class="btn btn-default btn-sm" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
+                <button class="btn btn-default btn-sm" :disabled="page >= totalPages" @click="goPage(totalPages)">末页</button>
+              </div>
+              <div class="page-size">
+                每页
+                <select class="select select-sm" v-model.number="size" @change="onSizeChange">
+                  <option :value="10">10</option>
+                  <option :value="20">20</option>
+                  <option :value="50">50</option>
+                  <option :value="100">100</option>
+                </select>
+                条
+              </div>
+            </div>
+          </div></div>
+          </div>
+
+          <!-- ========== 用户管理页面 ========== -->
+          <template v-if="currentTab === 'users'">
+            <div class="page-header">
+              <h2>用户管理</h2>
+              <button class="btn btn-primary btn-sm" @click="openUserModal()">新增用户</button>
+            </div>
+
+            <div class="filter-bar">
+              <div class="filter-row">
+                <input type="text" class="input" placeholder="搜索用户名 / 邮箱..." v-model="userFilters.keyword" @keyup.enter="userSearch" />
+                <button class="btn btn-primary" @click="userSearch">查询</button>
+                <button class="btn btn-default" @click="userResetFilters">重置</button>
+              </div>
+            </div>
+
+            <div class="table-wrapper">
+              <table class="table table-fixed user-table">
+                <thead>
+                  <tr>
+                    <th>用户名</th>
+                    <th>真实姓名</th>
+                    <th>邮箱</th>
+                    <th>角色</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="userLoading"><td colspan="7" class="text-center py-40">加载中...</td></tr>
+                  <tr v-else-if="userList.length === 0"><td colspan="7" class="text-center py-40 text-gray">暂无数据</td></tr>
+                  <tr v-for="item in userList" :key="item.id">
+                    <td>{{ item.username }}</td>
+                    <td>{{ item.real_name || '-' }}</td>
+                    <td>{{ item.email }}</td>
+                    <td><span :class="userRoleClass(item.role)">{{ userRoleLabel(item.role) }}</span></td>
+                    <td>
+                      <span v-if="item.locked" class="tag tag-danger">已锁定</span>
+                      <span v-else class="tag tag-success">正常</span>
+                    </td>
+                    <td class="text-sm">{{ formatDate(item.add_time) }}</td>
+                    <td>
+                      <button class="btn btn-text btn-sm" @click="openUserModal(item)">编辑</button>
+                      <button v-if="item.locked" class="btn btn-text btn-sm" style="color:#fb8c00" @click="unlockUser(item)">解锁</button>
+                      <button class="btn btn-text btn-sm" style="color:#ea4335" @click="deleteUser(item)">删除</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination">
+              <span class="page-info">共 {{ userTotal }} 条</span>
+              <div class="page-btns">
+                <button class="btn btn-default btn-sm" :disabled="userPage <= 1" @click="userGoPage(1)">首页</button>
+                <button class="btn btn-default btn-sm" :disabled="userPage <= 1" @click="userGoPage(userPage - 1)">上一页</button>
+                <span class="page-jump">
+                  第 <input type="number" class="input input-page" v-model.number="userPageInput" @keyup.enter="userJumpPage" min="1" :max="userTotalPages" /> / {{ userTotalPages }} 页
+                </span>
+                <button class="btn btn-default btn-sm" :disabled="userPage >= userTotalPages" @click="userGoPage(userPage + 1)">下一页</button>
+                <button class="btn btn-default btn-sm" :disabled="userPage >= userTotalPages" @click="userGoPage(userTotalPages)">末页</button>
+              </div>
+              <div class="page-size">
+                每页
+                <select class="select select-sm" v-model.number="userSize" @change="userOnSizeChange">
+                  <option :value="10">10</option>
+                  <option :value="20">20</option>
+                  <option :value="50">50</option>
+                  <option :value="100">100</option>
+                </select>
+                条
+              </div>
+            </div>
+          </template>
+
+          <!-- ========== 云平台账号管理页面 ========== -->
+          <template v-if="currentTab === 'accounts'">
+            <div class="page-header">
+              <h2>云平台账号管理</h2>
+              <button class="btn btn-primary btn-sm" @click="openAccountModal()">新增账号</button>
+            </div>
+
+            <div class="filter-bar">
+              <div class="filter-row">
+                <input type="text" class="input" placeholder="搜索账号名称 / ID..." v-model="accountFilters.keyword" @keyup.enter="accountSearch" />
+                <select class="select" v-model="accountFilters.platform">
+                  <option value="">全部平台</option>
+                  <option value="aliyun">阿里云</option>
+                  <option value="aws">AWS</option>
+                  <option value="tencent">腾讯云</option>
+                  <option value="cloudflare">Cloudflare</option>
+                </select>
+                <select class="select" v-model="accountFilters.site">
+                  <option value="">全部站点</option>
+                  <option value="cn">国内站</option>
+                  <option value="intl">国际站</option>
+                </select>
+                <button class="btn btn-primary" @click="accountSearch">查询</button>
+                <button class="btn btn-default" @click="accountResetFilters">重置</button>
+              </div>
+            </div>
+
+            <div class="table-wrapper">
+              <table class="table table-fixed account-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>账号ID</th>
+                    <th>平台</th>
+                    <th>站点</th>
+                    <th>账号名称</th>
+                    <th>AccessKey</th>
+                    <th>状态</th>
+                    <th>更新时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="accountLoading"><td colspan="9" class="text-center py-40">加载中...</td></tr>
+                  <tr v-else-if="accountList2.length === 0"><td colspan="9" class="text-center py-40 text-gray">暂无数据</td></tr>
+                  <tr v-for="item in accountList2" :key="item.id">
+                    <td>{{ item.id }}</td>
+                    <td class="text-mono text-sm">{{ item.account_id }}</td>
+                    <td><span class="tag tag-platform">{{ accountPlatformLabel(item.platform) }}</span></td>
+                    <td>{{ accountSiteLabel(item.site) }}</td>
+                    <td>{{ item.name }}</td>
+                    <td class="text-mono text-sm">{{ item.access_key }}</td>
+                    <td>
+                      <span v-if="item.enabled" class="tag tag-success">启用</span>
+                      <span v-else class="tag tag-default">禁用</span>
+                    </td>
+                    <td class="text-sm">{{ formatDate(item.updated_at) }}</td>
+                    <td style="white-space:nowrap">
+                      <button class="btn btn-text btn-sm" @click="openAccountModal(item)">编辑</button>
+                      <button class="btn btn-text btn-sm" style="color:#ea4335" @click="deleteAccount(item)">删除</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination">
+              <span class="page-info">共 {{ accountTotal }} 条</span>
+              <div class="page-btns">
+                <button class="btn btn-default btn-sm" :disabled="accountPage <= 1" @click="accountGoPage(1)">首页</button>
+                <button class="btn btn-default btn-sm" :disabled="accountPage <= 1" @click="accountGoPage(accountPage - 1)">上一页</button>
+                <span class="page-jump">
+                  第 <input type="number" class="input input-page" v-model.number="accountPageInput" @keyup.enter="accountJumpPage" min="1" :max="accountTotalPages" /> / {{ accountTotalPages }} 页
+                </span>
+                <button class="btn btn-default btn-sm" :disabled="accountPage >= accountTotalPages" @click="accountGoPage(accountPage + 1)">下一页</button>
+                <button class="btn btn-default btn-sm" :disabled="accountPage >= accountTotalPages" @click="accountGoPage(accountTotalPages)">末页</button>
+              </div>
+              <div class="page-size">
+                每页
+                <select class="select select-sm" v-model.number="accountSize" @change="accountOnSizeChange">
+                  <option :value="10">10</option>
+                  <option :value="20">20</option>
+                  <option :value="50">50</option>
+                  <option :value="100">100</option>
+                </select>
+                条
+              </div>
+            </div>
+          </template>
+
+          <!-- ========== DNS域名管理页面 ========== -->
+          <template v-if="currentTab === 'dnsDomains'">
+            <div class="page-header">
+              <h2>DNS解析管理</h2>
+              <div class="sync-btn-group">
+                <button class="btn btn-primary btn-sm" @click="openResourceSync('dns', 'DNS可管理域名')">同步DNS域名</button>
+                <span v-if="domainSyncLabel" class="btn btn-sync btn-sm" :class="domainSyncRunning ? 'btn-sync-running' : domainSyncError ? 'btn-sync-error' : 'btn-sync-done'">
+                  {{ domainSyncRunning ? '🔄' : domainSyncError ? '❌' : '✅' }} {{ domainSyncLabel }}
+                </span>
+              </div>
+            </div>
+
+            <div class="cdn-layout">
+              <!-- 左侧抽屉：按平台/账号筛选 -->
+              <aside class="cdn-drawer nav-dir">
+                <div class="nav-dir-head" @click.stop>
+                  <span class="nav-dir-title">选择账号</span>
+                  <button class="nav-dir-close" type="button" @click.stop="navDirOpen = false" title="关闭">✕</button>
+                </div>
+                <div class="nav-dir-search" @click.stop>
+                  <i class="fas fa-search"></i>
+                  <input type="text" class="nav-dir-search-input" v-model="navDirKeyword" placeholder="输入平台或账号实时筛选" autocomplete="off" />
+                  <button v-if="navDirKeyword" class="nav-dir-search-clear" type="button" title="清空" @click.stop="navDirKeyword = ''">✕</button>
+                </div>
+                <div class="cdn-drawer-title">筛选</div>
+                <button class="cdn-drawer-item" :class="{ active: !dnsDomainFilters.platform && !dnsDomainFilters.account }" @click="dnsDomainSelectFilter('', '')">全部域名</button>
+                <template v-for="pf in dnsDomainPlatformList" :key="pf">
+                  <div class="cdn-drawer-group" :class="{ active: dnsDomainFilters.platform === pf && !dnsDomainFilters.account }" @click="dnsDomainSelectFilter(pf, '')">{{ dnsDomainPlatformLabel(pf) }}</div>
+                  <button v-for="acc in dnsDomainAccountsOfPlatform(pf)" :key="pf + '-' + acc" class="cdn-drawer-item sub-2" :class="{ active: dnsDomainFilters.platform === pf && dnsDomainFilters.account === acc }" @click="dnsDomainSelectFilter(pf, acc)" :title="acc">{{ acc }}</button>
+                </template>
+              </aside>
+
+              <div class="cdn-main">
+                <!-- 筛选栏 -->
+                <div class="filter-bar">
+                  <div class="filter-row">
+                    <input type="text" class="input" placeholder="搜索域名..." v-model="dnsDomainFilters.keyword" @keyup.enter="dnsDomainSearch" />
+                    <button class="btn btn-primary" @click="dnsDomainSearch">查询</button>
+                    <button class="btn btn-default" @click="dnsDomainResetFilters">重置</button>
+                  </div>
+                </div>
+
+            <!-- 表格 -->
+            <div class="table-wrapper">
+              <table class="table dns-table">
+                <thead>
+                  <tr>
+                    <th>域名</th>
+                    <th>平台</th>
+                    <th>账号</th>
+                    <th>平台解析</th>
+                    <th>版本</th>
+                    <th>解析记录数</th>
+                    <th>DNS服务器</th>
+                    <th>创建时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="dnsDomainLoading"><td colspan="9" class="text-center py-40">加载中...</td></tr>
+                  <tr v-else-if="dnsDomainList.length === 0"><td colspan="9" class="text-center py-40 text-gray">暂无数据，请先同步域名</td></tr>
+                  <tr v-for="item in dnsDomainList" :key="item.id">
+                    <td>
+                      <a class="domain-link" :title="item.domain_name" @click="openDnsResolve(item)">{{ item.domain_name }}</a>
+                    </td>
+                    <td :title="dnsDomainPlatformLabel(item.platform)"><span class="tag tag-platform">{{ dnsDomainPlatformLabel(item.platform) }}</span></td>
+                    <td :title="item.account_name">{{ item.account_name }}</td>
+                    <td><span :class="item.ali_domain ? 'tag tag-success' : 'tag tag-default'">{{ item.ali_domain ? '是' : '否' }}</span></td>
+                    <td><span :class="item.starmark ? 'tag tag-success' : 'tag tag-default'">{{ item.starmark ? '正式版' : '免费版' }}</span></td>
+                    <td>{{ item.record_count }}</td>
+                    <td class="text-sm text-mono" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" :title="item.dns_servers">{{ item.dns_servers || '-' }}</td>
+                    <td class="text-sm">{{ formatDateTime(item.create_time) }}</td>
+                    <td>
+                      <button class="btn btn-text btn-sm" @click="openDnsResolve(item)">解析</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination">
+              <span class="page-info">共 {{ dnsDomainTotal }} 条</span>
+              <div class="page-btns">
+                <button class="btn btn-default btn-sm" :disabled="dnsDomainPage <= 1" @click="dnsDomainGoPage(1)">首页</button>
+                <button class="btn btn-default btn-sm" :disabled="dnsDomainPage <= 1" @click="dnsDomainGoPage(dnsDomainPage - 1)">上一页</button>
+                <span class="page-jump">
+                  第 <input type="number" class="input input-page" v-model.number="dnsDomainPageInput" @keyup.enter="dnsDomainJumpPage" min="1" :max="dnsDomainTotalPages" /> / {{ dnsDomainTotalPages }} 页
+                </span>
+                <button class="btn btn-default btn-sm" :disabled="dnsDomainPage >= dnsDomainTotalPages" @click="dnsDomainGoPage(dnsDomainPage + 1)">下一页</button>
+                <button class="btn btn-default btn-sm" :disabled="dnsDomainPage >= dnsDomainTotalPages" @click="dnsDomainGoPage(dnsDomainTotalPages)">末页</button>
+              </div>
+              <div class="page-size">
+                每页
+                <select class="select select-sm" v-model.number="dnsDomainSize" @change="dnsDomainOnSizeChange">
+                  <option :value="10">10</option>
+                  <option :value="20">20</option>
+                  <option :value="50">50</option>
+                  <option :value="100">100</option>
+                </select>
+                条
+              </div>
+            </div>
+          </div></div>
+          </template>
+
+          <!-- ========== CDN域名页 ========== -->
+          <template v-if="currentTab === 'cdnDomains'">
+            <div class="page-header">
+              <h2>CDN域名</h2>
+              <div class="sync-btn-group">
+                <button class="btn btn-primary btn-sm" @click="openResourceSync('cdn', 'CDN加速域名')">同步CDN域名</button>
+              </div>
+            </div>
+
+            <div class="cdn-layout">
+              <!-- 左侧抽屉：按平台/账号筛选 -->
+              <aside class="cdn-drawer nav-dir">
+                <div class="nav-dir-head" @click.stop>
+                  <span class="nav-dir-title">选择账号</span>
+                  <button class="nav-dir-close" type="button" @click.stop="navDirOpen = false" title="关闭">✕</button>
+                </div>
+                <div class="nav-dir-search" @click.stop>
+                  <i class="fas fa-search"></i>
+                  <input type="text" class="nav-dir-search-input" v-model="navDirKeyword" placeholder="输入平台或账号实时筛选" autocomplete="off" />
+                  <button v-if="navDirKeyword" class="nav-dir-search-clear" type="button" title="清空" @click.stop="navDirKeyword = ''">✕</button>
+                </div>
+                <div class="cdn-drawer-title">筛选</div>
+                <button class="cdn-drawer-item" :class="{ active: !cdnDomainFilters.platform && !cdnDomainFilters.account }" @click="cdnSelectFilter('', '')">全部域名</button>
+                <template v-for="pf in cdnDomainPlatformList" :key="pf">
+                  <div class="cdn-drawer-group" :class="{ active: cdnDomainFilters.platform === pf && !cdnDomainFilters.account }" @click="cdnSelectFilter(pf, '')">{{ cdnDomainPlatformLabel(pf) }}</div>
+                  <button v-for="acc in cdnAccountsOfPlatform(pf)" :key="acc" class="cdn-drawer-item sub-2" :class="{ active: cdnDomainFilters.account === acc }" @click="cdnSelectFilter(pf, acc)" :title="acc">{{ acc }}</button>
+                </template>
+              </aside>
+
+              <div class="cdn-main">
+                <!-- 筛选栏 -->
+                <div class="filter-bar">
+                  <div class="filter-row">
+                    <input type="text" class="input" placeholder="搜索加速域名 / 源站 / 账户名..." v-model="cdnDomainFilters.keyword" @keyup.enter="cdnDomainSearch" />
+                    <button class="btn btn-primary" @click="cdnDomainSearch">查询</button>
+                    <button class="btn btn-default" @click="cdnDomainResetFilters">重置</button>
+                    <select class="select select-sm" v-model="cdnDomainFilters.status" @change="cdnDomainSearch" style="width:130px;min-width:130px;">
+                      <option value="">全部状态</option>
+                      <option value="运行中">运行中</option>
+                      <option value="已停止">已停止</option>
+                      <option value="配置中">配置中</option>
+                      <option value="审核中">审核中</option>
+                      <option value="审核未通过">审核未通过</option>
+                      <option value="配置失败">配置失败</option>
+                      <option value="删除中">删除中</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div v-if="cdnDomainFilters.platform || cdnDomainFilters.account" class="cdn-filter-tip">
+                  当前筛选：{{ cdnDomainFilters.platform ? cdnDomainPlatformLabel(cdnDomainFilters.platform) : '全部平台' }}<template v-if="cdnDomainFilters.account"> / {{ cdnDomainFilters.account }}</template>
+                </div>
+
+                <!-- 表格 -->
+                <div class="table-wrapper">
+                  <table class="table table-fixed cdn-table">
+                    <thead>
+                      <tr>
+                        <th>加速域名</th>
+                        <th>CNAME</th>
+                        <th>平台</th>
+                        <th>产品</th>
+                        <th>账号</th>
+                        <th>状态</th>
+                        <th>业务类型</th>
+                        <th>源站</th>
+                        <th>HTTPS</th>
+                        <th>证书到期</th>
+                        <th>SSL剩余 <span class="sort-icon" @click="cdnDomainToggleSslSort()">{{ cdnDomainSortIcon }}</span></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-if="cdnDomainLoading"><td colspan="11" class="text-center py-40">加载中...</td></tr>
+                      <tr v-else-if="cdnDomainList.length === 0"><td colspan="11" class="text-center py-40 text-gray">暂无数据，请先同步CDN域名</td></tr>
+                      <tr v-for="item in cdnDomainSortedList" :key="item.id">
+                        <td class="cdn-domain-cell">
+                          {{ item.domain_name }}
+                          <span v-if="item.aliases && item.aliases.split(',').length > 1" class="tag tag-default" style="margin-left:6px;font-size:11px;" :title="'全部备用域名: ' + item.aliases">+{{ item.aliases.split(',').length - 1 }}</span>
+                        </td>
+                        <td class="cdn-cname-cell" :title="item.cname">{{ item.cname || '-' }}</td>
+                        <td><span class="tag tag-platform">{{ cdnDomainPlatformLabel(item.platform) }}</span></td>
+                        <td><span class="tag" :class="cdnProductClass(item.product)">{{ cdnProductLabel(item.product) }}</span></td>
+                        <td>{{ item.account_name }}</td>
+                        <td><span class="tag" :class="cdnStatusClass(item.status)">{{ item.status || '-' }}</span></td>
+                        <td>{{ item.biz_type || '-' }}</td>
+                        <td class="text-sm text-mono" style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" :title="item.origin_domain">{{ item.origin_domain || '-' }}</td>
+                        <td><span :class="item.https_on ? 'cdn-https-on' : 'cdn-https-off'">{{ item.https_on ? '已开启' : '未开启' }}</span></td>
+                        <td class="cdn-cert-expire">{{ item.cert_expire_time || '-' }}</td>
+                        <td>
+                          <span v-if="cdnSslDaysLeft(item.cert_expire_time) === null" class="text-gray">-</span>
+                          <span v-else :style="{ color: cdnSslDaysLeft(item.cert_expire_time) <= 0 ? '#e53e3e' : (cdnSslDaysLeft(item.cert_expire_time) <= 14 ? '#dd6b20' : '#2f855a') }">
+                            {{ cdnSslDaysLeft(item.cert_expire_time) }} 天
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="pagination">
+                  <span class="page-info">共 {{ cdnDomainTotal }} 条</span>
+                  <div class="page-btns">
+                    <button class="btn btn-default btn-sm" :disabled="cdnDomainPage <= 1" @click="cdnDomainGoPage(1)">首页</button>
+                    <button class="btn btn-default btn-sm" :disabled="cdnDomainPage <= 1" @click="cdnDomainGoPage(cdnDomainPage - 1)">上一页</button>
+                    <span class="page-jump">
+                      第 <input type="number" class="input input-page" v-model.number="cdnDomainPageInput" @keyup.enter="cdnDomainJumpPage" min="1" :max="cdnDomainTotalPages" /> / {{ cdnDomainTotalPages }} 页
+                    </span>
+                    <button class="btn btn-default btn-sm" :disabled="cdnDomainPage >= cdnDomainTotalPages" @click="cdnDomainGoPage(cdnDomainPage + 1)">下一页</button>
+                    <button class="btn btn-default btn-sm" :disabled="cdnDomainPage >= cdnDomainTotalPages" @click="cdnDomainGoPage(cdnDomainTotalPages)">末页</button>
+                  </div>
+                  <div class="page-size">
+                    每页
+                    <select class="select select-sm" v-model.number="cdnDomainSize" @change="cdnDomainOnSizeChange">
+                      <option :value="10">10</option>
+                      <option :value="20">20</option>
+                      <option :value="50">50</option>
+                      <option :value="100">100</option>
+                    </select>
+                    条
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ========== DNS解析记录页面（全屏，按平台各自独立界面） ========== -->
+          <template v-if="currentTab === 'dns'">
+            <div class="page-header">
+              <h2>DNS解析记录 - {{ dnsCurrentDomain }}
+                <span class="tag tag-platform" style="margin-left:8px;vertical-align:middle;">{{ dnsPlatformTitle(dnsCurrentPlatform) }}</span>
+                <span class="text-gray text-sm" style="margin-left:8px;font-weight:normal;" v-if="dnsCurrentAccount">站点：{{ dnsCurrentAccount }}</span>
+              </h2>
+              <div>
+                <button class="btn btn-primary btn-sm" @click="openDnsAddForm" style="margin-right:8px">添加记录</button>
+                <button class="btn btn-default btn-sm" @click="goTab('/assets/pages/dns.html')">← 返回DNS域名列表</button>
+              </div>
+            </div>
+
+            <div v-if="dnsModalLoading" class="text-center py-40">加载中...</div>
+            <div v-else-if="dnsModalError" class="text-center py-40">
+              <div class="text-danger" style="margin-bottom:12px;">{{ dnsModalError }}</div>
+              <button class="btn btn-primary btn-sm" @click="retryDnsRecords">🔄 重新刷新</button>
+            </div>
+            <div v-else>
+              <div class="filter-bar">
+                <div class="filter-row">
+                  <input type="text" class="input" placeholder="搜索主机记录 / 记录值..." v-model="dnsRecordKeyword" @keyup.enter="dnsRecordSearch" style="max-width:260px;" />
+                  <select class="select select-sm" v-model="dnsRecordTypeFilter" style="width:100px;">
+                    <option value="">全部类型</option>
+                    <option value="A">A</option>
+                    <option value="AAAA">AAAA</option>
+                    <option value="CNAME">CNAME</option>
+                    <option value="MX">MX</option>
+                    <option value="TXT">TXT</option>
+                    <option value="NS">NS</option>
+                    <option value="SRV">SRV</option>
+                    <option value="CAA">CAA</option>
+                    <option value="PTR">PTR</option>
+                    <option value="显性URL">显性URL</option>
+                    <option value="隐性URL">隐性URL</option>
+                  </select>
+                  <button class="btn btn-primary btn-sm" @click="dnsRecordSearch">查询</button>
+                  <span class="text-gray text-sm" style="margin-left:auto">共 {{ filteredDnsModalList.length }} 条记录</span>
+                  <button class="btn btn-default btn-sm" @click="showDnsRecords({ domain_name: dnsCurrentDomain })">刷新</button>
+                </div>
+              </div>
+
+              <!-- ===== 阿里云解析界面（线路 + 负载策略/权重） ===== -->
+              <div class="table-wrapper" v-if="dnsCurrentPlatform === 'aliyun'">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>主机记录</th><th>类型</th><th>线路</th><th>记录值</th><th>TTL</th>
+                      <th>负载策略</th><th>权重数</th><th>状态</th><th>备注</th><th>更新时间</th><th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="filteredDnsModalList.length === 0"><td colspan="11" class="text-center py-20 text-gray">暂无解析记录</td></tr>
+                    <tr v-for="rec in filteredDnsModalList" :key="rec.record_id">
+                      <td><strong>{{ rec.rr }}</strong></td>
+                      <td><span class="tag tag-success">{{ rec.type }}</span></td>
+                      <td>{{ dnsRecordLineLabel(rec.line) }}</td>
+                      <td class="text-mono" :title="rec.value" style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ rec.value }}</td>
+                      <td>{{ rec.ttl }}</td>
+                      <td>{{ dnsRecordStrategyLabel(rec.weight) }}</td>
+                      <td>{{ dnsRecordWeightNum(rec.weight) }}</td>
+                      <td><span v-if="rec.status === 'ENABLE'" class="tag tag-success">启用</span><span v-else class="tag tag-default">禁用</span></td>
+                      <td class="text-sm text-gray" style="max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" :title="rec.remark">{{ rec.remark || '-' }}</td>
+                      <td class="text-sm">{{ formatDateTime(rec.update_time) }}</td>
+                      <td style="white-space:nowrap;">
+                        <button v-if="rec.status === 'ENABLE'" class="btn btn-text btn-sm" style="color:#f59e0b" @click="toggleDnsRecordStatus(rec)">禁用</button>
+                        <button v-else class="btn btn-text btn-sm" style="color:#10b981" @click="toggleDnsRecordStatus(rec)">启用</button>
+                        <button class="btn btn-text btn-sm" style="color:#ea4335" @click="deleteDnsRecord(rec)">删除</button>
+                        <button class="btn btn-text btn-sm" @click="openDnsEditForm(rec)">修改</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- ===== 腾讯云解析界面（线路 + 负载策略/权重） ===== -->
+              <div class="table-wrapper" v-else-if="dnsCurrentPlatform === 'tencent'">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>主机记录</th><th>类型</th><th>线路</th><th>记录值</th><th>TTL</th>
+                      <th>负载策略</th><th>权重数</th><th>状态</th><th>备注</th><th>更新时间</th><th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="filteredDnsModalList.length === 0"><td colspan="11" class="text-center py-20 text-gray">暂无解析记录</td></tr>
+                    <tr v-for="rec in filteredDnsModalList" :key="rec.record_id">
+                      <td><strong>{{ rec.rr }}</strong></td>
+                      <td><span class="tag tag-success">{{ rec.type }}</span></td>
+                      <td>{{ dnsRecordLineLabel(rec.line) }}</td>
+                      <td class="text-mono" :title="rec.value" style="max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ rec.value }}</td>
+                      <td>{{ rec.ttl }}</td>
+                      <td>{{ dnsRecordStrategyLabel(rec.weight) }}</td>
+                      <td>{{ dnsRecordWeightNum(rec.weight) }}</td>
+                      <td><span v-if="rec.status === 'ENABLE'" class="tag tag-success">启用</span><span v-else class="tag tag-default">禁用</span></td>
+                      <td class="text-sm text-gray" style="max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" :title="rec.remark">{{ rec.remark || '-' }}</td>
+                      <td class="text-sm">{{ formatDateTime(rec.update_time) }}</td>
+                      <td style="white-space:nowrap;">
+                        <button v-if="rec.status === 'ENABLE'" class="btn btn-text btn-sm" style="color:#f59e0b" @click="toggleDnsRecordStatus(rec)">禁用</button>
+                        <button v-else class="btn btn-text btn-sm" style="color:#10b981" @click="toggleDnsRecordStatus(rec)">启用</button>
+                        <button class="btn btn-text btn-sm" style="color:#ea4335" @click="deleteDnsRecord(rec)">删除</button>
+                        <button class="btn btn-text btn-sm" @click="openDnsEditForm(rec)">修改</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- ===== Cloudflare 解析界面（代理状态，无线路/权重） ===== -->
+              <div class="table-wrapper" v-else-if="dnsCurrentPlatform === 'cloudflare'">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>主机记录</th><th>类型</th><th>内容</th><th>TTL</th><th>代理状态</th><th>状态</th><th>修改时间</th><th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="filteredDnsModalList.length === 0"><td colspan="8" class="text-center py-20 text-gray">暂无解析记录</td></tr>
+                    <tr v-for="rec in filteredDnsModalList" :key="rec.record_id">
+                      <td><strong>{{ rec.rr }}</strong></td>
+                      <td><span class="tag tag-success">{{ rec.type }}</span></td>
+                      <td class="text-mono" :title="rec.value" style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ rec.value }}</td>
+                      <td>{{ rec.ttl === 1 ? '自动' : rec.ttl }}</td>
+                      <td>
+                        <span v-if="rec.type === 'A' || rec.type === 'AAAA' || rec.type === 'CNAME'">
+                          <span v-if="rec.proxied" style="color:#f6821f;font-weight:600;">已代理</span>
+                          <span v-else class="text-gray">仅DNS</span>
+                        </span>
+                        <span v-else class="text-gray">-</span>
+                      </td>
+                      <td><span v-if="rec.status === 'ENABLE'" class="tag tag-success">启用</span><span v-else class="tag tag-default">禁用</span></td>
+                      <td class="text-sm">{{ formatDateTime(rec.update_time) }}</td>
+                      <td style="white-space:nowrap;">
+                        <button class="btn btn-text btn-sm" style="color:#ea4335" @click="deleteDnsRecord(rec)">删除</button>
+                        <button class="btn btn-text btn-sm" @click="openDnsEditForm(rec)">修改</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- ===== AWS Route53 解析界面（基础字段，无线路/权重） ===== -->
+              <div class="table-wrapper" v-else-if="dnsCurrentPlatform === 'aws'">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>主机记录</th><th>类型</th><th>记录值</th><th>TTL</th><th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-if="filteredDnsModalList.length === 0"><td colspan="5" class="text-center py-20 text-gray">暂无解析记录</td></tr>
+                    <tr v-for="rec in filteredDnsModalList" :key="rec.record_id">
+                      <td><strong>{{ rec.rr }}</strong></td>
+                      <td><span class="tag tag-success">{{ rec.type }}</span></td>
+                      <td class="text-mono" :title="rec.value" style="max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ rec.value }}</td>
+                      <td>{{ rec.ttl }}</td>
+                      <td style="white-space:nowrap;">
+                        <button class="btn btn-text btn-sm" style="color:#ea4335" @click="deleteDnsRecord(rec)">删除</button>
+                        <button class="btn btn-text btn-sm" @click="openDnsEditForm(rec)">修改</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- 未知/缺失平台提示 -->
+              <div v-else class="table-wrapper">
+                <div class="text-center py-40 text-gray">未能识别该域名的解析平台（platform={{ dnsCurrentPlatform || '空' }}）。请返回列表重试，或检查该域名是否已同步。</div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ========== ECS 页面 ========== -->
+          <template v-if="currentTab === 'ecs'">
+            <div class="page-header">
+              <h2>ECS实例</h2>
+              <div class="sync-btn-group">
+                <button class="btn btn-primary btn-sm" @click="openEcsManualModal()" style="margin-right:8px" v-if="isAdmin">手动添加</button>
+                <button class="btn btn-primary btn-sm" @click="openResourceSync('ecs', 'ECS实例')">同步ECS</button>
+                <span v-if="ecsSyncLabel" class="btn btn-sync btn-sm" :class="ecsSyncRunning ? 'btn-sync-running' : ecsSyncError ? 'btn-sync-error' : 'btn-sync-done'">
+                  {{ ecsSyncRunning ? '🔄' : ecsSyncError ? '❌' : '✅' }} {{ ecsSyncLabel }}
+                </span>
+              </div>
+            </div>
+
+            <div class="stats-row stats-row-ecs">
+              <div class="stat-card">
+                <div class="stat-value">{{ ecsTotal }}</div>
+                <div class="stat-label">ECS总数</div>
+              </div>
+              <div class="stat-card online">
+                <div class="stat-value">{{ ecsStats.online }}</div>
+                <div class="stat-label">在线</div>
+              </div>
+              <div class="stat-card offline">
+                <div class="stat-value">{{ ecsStats.offline }}</div>
+                <div class="stat-label">已下线</div>
+              </div>
+            </div>
+
+            <div class="cdn-layout">
+              <!-- 左侧抽屉：按平台/账号筛选 -->
+              <aside class="cdn-drawer nav-dir">
+                <div class="nav-dir-head" @click.stop>
+                  <span class="nav-dir-title">选择账号</span>
+                  <button class="nav-dir-close" type="button" @click.stop="navDirOpen = false" title="关闭">✕</button>
+                </div>
+                <div class="nav-dir-search" @click.stop>
+                  <i class="fas fa-search"></i>
+                  <input type="text" class="nav-dir-search-input" v-model="navDirKeyword" placeholder="输入平台或账号实时筛选" autocomplete="off" />
+                  <button v-if="navDirKeyword" class="nav-dir-search-clear" type="button" title="清空" @click.stop="navDirKeyword = ''">✕</button>
+                </div>
+                <div class="cdn-drawer-title">筛选</div>
+                <button class="cdn-drawer-item" :class="{ active: !ecsFilters.platform && !ecsFilters.account }" @click="ecsSelectFilter('', '')">全部实例</button>
+                <template v-for="pf in ecsPlatformList" :key="pf">
+                  <div class="cdn-drawer-group" :class="{ active: ecsFilters.platform === pf && !ecsFilters.account }" @click="ecsSelectFilter(pf, '')">{{ ecsPlatformLabel(pf) }}</div>
+                  <button v-for="acc in ecsAccountsOfPlatform(pf)" :key="acc" class="cdn-drawer-item sub-2" :class="{ active: ecsFilters.account === acc }" @click="ecsSelectFilter(pf, acc)" :title="acc">{{ acc }}</button>
+                </template>
+              </aside>
+
+              <div class="cdn-main">
+                <div class="filter-bar">
+                  <div class="filter-row">
+                    <input type="text" class="input" placeholder="搜索实例名 / ID / IP / 账户名..." v-model="ecsFilters.keyword" @keyup.enter="ecsSearch" />
+                    <select class="select" v-model="ecsFilters.is_offline">
+                      <option value="">上下线:全部</option>
+                      <option value="0">在线</option>
+                      <option value="1">已下线</option>
+                    </select>
+                    <select class="select" v-model="ecsFilters.region">
+                      <option value="">全部地域</option>
+                      <option v-for="r in ecsRegionList" :key="r" :value="r">{{ r }}</option>
+                    </select>
+                    <button class="btn btn-primary" @click="ecsSearch">查询</button>
+                    <button class="btn btn-default" @click="ecsResetFilters">重置</button>
+                  </div>
+                </div>
+
+                <div class="table-wrapper">
+              <table class="table table-fixed ecs-table">
+                <thead>
+                  <tr>
+                    <th class="th-sortable" @click="toggleEcsNameSort()">实例ID/名称 <span class="sort-arrow" :class="ecsSortDir">{{ ecsSortIcon }}</span></th>
+                    <th>平台</th>
+                    <th>账号</th>
+                    <th>状态</th>
+                    <th>规格</th>
+                    <th>CPU</th>
+                    <th>内存(GB)</th>
+                    <th>操作系统</th>
+                    <th class="col-ip">IP地址</th>
+                    <th>SSH端口</th>
+                    <th>地域</th>
+                    <th>可用区</th>
+                    <th>创建时间</th>
+                    <th>来源</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="ecsLoading"><td colspan="14" class="text-center py-40">加载中...</td></tr>
+                  <tr v-else-if="ecsList.length === 0"><td colspan="14" class="text-center py-40 text-gray">暂无ECS实例</td></tr>
+                  <tr v-for="item in ecsSortedList" :key="item.instance_id + '_' + item.account_id" :class="{ 'row-offline': item.is_offline === 1 }">
+                    <td>
+                      <div v-if="ecsInlineEdit.id === item.id && ecsInlineEdit.field === 'name'">
+                        <input class="input input-full ecs-inline-input" v-model="ecsInlineValue" @keyup.enter="saveEcsInlineEdit(item)" @keyup.esc="cancelEcsInlineEdit" @blur="saveEcsInlineEdit(item)" />
+                      </div>
+                      <div v-else :class="{ 'ecs-cell-editable': isAdmin }" :title="isAdmin ? '双击修改实例名称' : ''" @dblclick="startEcsInlineEdit(item, 'name')">
+                        <div class="domain-name">{{ item.instance_name || '-' }}</div>
+                        <div class="domain-remark">{{ item.instance_id }}</div>
+                      </div>
+                    </td>
+                    <td><span class="tag tag-platform">{{ item.platform }}</span></td>
+                    <td>{{ item.account_name }}</td>
+                    <td>
+                      <span v-if="item.is_offline === 1"><span class="dot dot-offline"></span><span class="text-gray">已下线</span></span>
+                      <span v-else><span class="dot" :class="ecsDotClass(item.status)"></span>{{ ecsStatusLabel(item.status) }}</span>
+                    </td>
+                    <td>{{ item.instance_type || '-' }}</td>
+                    <td>{{ item.cpu }}</td>
+                    <td>{{ item.memory }}</td>
+                    <td class="text-sm">{{ item.os_name || '-' }}</td>
+                    <td>
+                      <div class="ip-list">
+                        <div v-if="item.public_ip_address" class="ip-line"><span class="text-mono">{{ item.public_ip_address }}</span><span class="ip-tag ip-tag-public">公网</span></div>
+                        <div v-if="item.eip_address" class="ip-line"><span class="text-mono">{{ item.eip_address }}</span><span class="ip-tag ip-tag-eip">弹性</span></div>
+                        <div v-if="item.private_ip_address" class="ip-line"><span class="text-mono">{{ item.private_ip_address }}</span><span class="ip-tag ip-tag-private">私网</span></div>
+                        <span v-if="!item.public_ip_address && !item.private_ip_address && !item.eip_address" class="text-gray">-</span>
+                      </div>
+                    </td>
+                    <td class="text-mono">
+                      <span v-if="ecsInlineEdit.id === item.id && ecsInlineEdit.field === 'ssh_port'">
+                        <input type="number" min="1" max="65535" class="input ecs-inline-input" style="width:90px;display:inline-block" v-model="ecsInlineValue" @keyup.enter="saveEcsInlineEdit(item)" @keyup.esc="cancelEcsInlineEdit" @blur="saveEcsInlineEdit(item)" />
+                      </span>
+                      <span v-else :class="{ 'ecs-cell-editable': isAdmin }" :title="isAdmin ? '双击修改SSH端口' : ''" @dblclick="startEcsInlineEdit(item, 'ssh_port')">{{ item.ssh_port || 22 }}</span>
+                    </td>
+                    <td class="text-sm">{{ item.region_name || '-' }}</td>
+                    <td class="text-sm">{{ item.zone_name || '-' }}</td>
+                    <td class="text-sm">{{ formatDate(item.creation_time) }}</td>
+                    <td><span :class="item.source==='manual'?'tag tag-success':'tag tag-platform'">{{ item.source==='manual'?'手动':'同步' }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination">
+              <span class="page-info">共 {{ ecsTotal }} 条</span>
+              <div class="page-btns">
+                <button class="btn btn-default btn-sm" :disabled="ecsPage <= 1" @click="ecsGoPage(1)">首页</button>
+                <button class="btn btn-default btn-sm" :disabled="ecsPage <= 1" @click="ecsGoPage(ecsPage - 1)">上一页</button>
+                <span class="page-jump">
+                  第 <input type="number" class="input input-page" v-model.number="ecsPageInput" @keyup.enter="ecsJumpPage" min="1" :max="ecsTotalPages" /> / {{ ecsTotalPages }} 页
+                </span>
+                <button class="btn btn-default btn-sm" :disabled="ecsPage >= ecsTotalPages" @click="ecsGoPage(ecsPage + 1)">下一页</button>
+                <button class="btn btn-default btn-sm" :disabled="ecsPage >= ecsTotalPages" @click="ecsGoPage(ecsTotalPages)">末页</button>
+              </div>
+              <div class="page-size">
+                每页
+                <select class="select select-sm" v-model.number="ecsSize" @change="ecsOnSizeChange">
+                  <option :value="10">10</option>
+                  <option :value="20">20</option>
+                  <option :value="50">50</option>
+                  <option :value="100">100</option>
+                </select>
+                条
+              </div>
+            </div>
+          </div></div>
+          </template>
+
+          <!-- ========== 堡垒机 - 资产 ========== -->
+          <template v-if="currentTab === 'bastionAssets'">
+            <div class="page-header">
+              <h2>堡垒机资产</h2>
+              <div class="filter-bar page-header-filters">
+                <div class="filter-row">
+                  <input type="text" class="input" placeholder="搜索实例名 / ID / IP..." v-model="bastionAssetKeyword" />
+                  <select class="select select-sm" v-model="bastionAssetStatus" style="width:110px;min-width:110px;"><option value="">全部状态</option><option value="Running">运行中</option><option value="Stopped">已停止</option></select>
+                  <select class="select select-sm" v-model="bastionAssetRegion" style="width:130px;min-width:130px;"><option value="">全部地域</option><option v-for="r in bastionAssetRegions" :key="r" :value="r">{{ r }}</option></select>
+                </div>
+              </div>
+              <a href="/terminal.html?v=20261108i" target="_blank" title="Shell 终端" class="btn btn-primary btn-sm" style="margin-left:auto;text-decoration:none;flex-shrink:0">shell终端</a>
+            </div>
+            <div class="cdn-layout">
+              <!-- 左侧抽屉：按平台/账号筛选 -->
+              <aside class="cdn-drawer nav-dir">
+                <div class="nav-dir-head" @click.stop>
+                  <span class="nav-dir-title">选择账号</span>
+                  <button class="nav-dir-close" type="button" @click.stop="navDirOpen = false" title="关闭">✕</button>
+                </div>
+                <div class="nav-dir-search" @click.stop>
+                  <i class="fas fa-search"></i>
+                  <input type="text" class="nav-dir-search-input" v-model="navDirKeyword" placeholder="输入平台或账号实时筛选" autocomplete="off" />
+                  <button v-if="navDirKeyword" class="nav-dir-search-clear" type="button" title="清空" @click.stop="navDirKeyword = ''">✕</button>
+                </div>
+                <div class="cdn-drawer-title">筛选</div>
+                <button class="cdn-drawer-item" :class="{ active: !bastionAssetPlatform && !bastionAssetAccount }" @click="bastionAssetSelectFilter('', '')">全部资产</button>
+                <template v-for="pf in bastionAssetPlatformList" :key="pf">
+                  <div class="cdn-drawer-group" :class="{ active: bastionAssetPlatform === pf && !bastionAssetAccount }" @click="bastionAssetSelectFilter(pf, '')">{{ ecsPlatformLabel(pf) }}</div>
+                  <button v-for="acc in bastionAssetAccountsOfPlatform(pf)" :key="acc" class="cdn-drawer-item sub-2" :class="{ active: bastionAssetAccount === acc }" @click="bastionAssetSelectFilter(pf, acc)" :title="acc">{{ acc }}</button>
+                </template>
+              </aside>
+
+              <div class="cdn-main">
+                <div class="filter-bar">
+                  <div class="filter-row">
+                  </div>
+                </div>
+                <div class="table-wrapper"><table class="table table-fixed bastion-asset-table">
+              <thead><tr><th class="th-sortable" @click="toggleBastionAssetNameSort()">实例ID/名称 <span class="sort-arrow" :class="bastionAssetSortDir">{{ bastionAssetSortIcon }}</span></th><th>平台</th><th>账号</th><th>状态</th><th>规格</th><th>CPU</th><th>内存(GB)</th><th>操作系统</th><th class="col-ip">IP地址</th><th>SSH端口</th><th>地域</th><th>可用区</th><th>创建时间</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr v-if="bastionAssetLoading"><td colspan="14" class="text-center py-40">加载中...</td></tr>
+                <tr v-else-if="filteredBastionAssetList.length === 0"><td colspan="14" class="text-center py-40 text-gray">暂无已授权资产</td></tr>
+                <tr v-for="a in bastionAssetSortedList" :key="a.id">
+                  <td><div class="domain-name">{{ a.instance_name || '-' }}</div><div class="domain-remark">{{ a.instance_id }}</div></td>
+                  <td><span class="tag tag-platform">{{ a.platform }}</span></td>
+                  <td>{{ a.account_name }}</td>
+                  <td><span class="dot" :class="ecsDotClass(a.status)"></span>{{ ecsStatusLabel(a.status) }}</td>
+                  <td>{{ a.instance_type || '-' }}</td>
+                  <td>{{ a.cpu }}</td>
+                  <td>{{ a.memory }}</td>
+                  <td class="text-sm">{{ a.os_name || '-' }}</td>
+                  <td><div class="ip-list"><div v-if="a.public_ip_address" class="ip-line"><span class="text-mono">{{ a.public_ip_address }}</span><span class="ip-tag ip-tag-public">公网</span></div><div v-if="a.eip_address" class="ip-line"><span class="text-mono">{{ a.eip_address }}</span><span class="ip-tag ip-tag-eip">弹性</span></div><div v-if="a.private_ip_address" class="ip-line"><span class="text-mono">{{ a.private_ip_address }}</span><span class="ip-tag ip-tag-private">私网</span></div><span v-if="!a.public_ip_address && !a.private_ip_address && !a.eip_address" class="text-gray">-</span></div></td>
+                  <td class="text-mono">{{ a.ssh_port || 22 }}</td>
+                  <td class="text-sm">{{ a.region_name || '-' }}</td>
+                  <td class="text-sm">{{ a.zone_name || '-' }}</td>
+                  <td class="text-sm">{{ formatDate(a.creation_time) }}</td>
+                  <td><button class="btn btn-text btn-sm" @click="connectBastion(a)">连接</button></td>
+                </tr>
+              </tbody>
+            </table></div>
+          </div></div>
+          </template>
+
+          <!-- ========== 堡垒机 - 用户组管理 ========== -->
+          <template v-if="currentTab === 'bastionGroups'">
+            <div class="page-header"><h2>用户组管理</h2><button class="btn btn-primary btn-sm" @click="openBastionGroupModal()" v-if="isAdmin">新增用户组</button></div>
+            <div class="table-wrapper">
+              <table class="table">
+                <thead><tr><th>名称</th><th>描述</th><th v-if="isAdmin">操作</th></tr></thead>
+                <tbody>
+                  <tr v-if="bastionGroupLoading"><td colspan="3" class="text-center py-40">加载中...</td></tr>
+                  <tr v-else-if="bastionGroupList.length === 0"><td colspan="3" class="text-center py-40 text-gray">暂无用户组</td></tr>
+                  <tr v-for="g in bastionGroupList" :key="g.id">
+                    <td><strong>{{ g.name }}</strong></td>
+                    <td class="text-gray text-sm">{{ g.description || '-' }}</td>
+                    <td v-if="isAdmin" style="white-space:nowrap">
+                      <button class="btn btn-text btn-sm" @click="openBastionGroupModal(g)">编辑</button>
+                      <button class="btn btn-text btn-sm" @click="openBastionGroupMembers(g)">成员</button>
+                      <button class="btn btn-text btn-sm" @click="openBastionGroupAssets(g)">资产授权</button>
+                      <button class="btn btn-text btn-sm" style="color:#ea4335" @click="deleteBastionGroup(g)">删除</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <!-- ========== 堡垒机 - 凭证管理 ========== -->
+          <template v-if="currentTab === 'bastionCredentials'">
+            <div class="page-header">
+              <h2>凭证管理</h2>
+              <button class="btn btn-primary btn-sm" @click="openBastionCredModal()">新增凭证</button>
+            </div>
+            <div class="table-wrapper">
+              <table class="table">
+                <thead><tr><th>名称</th><th>用户名</th><th>认证方式</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr v-if="bastionCredLoading"><td colspan="4" class="text-center py-40">加载中...</td></tr>
+                  <tr v-else-if="bastionCredList.length === 0"><td colspan="4" class="text-center py-40 text-gray">暂无凭证</td></tr>
+                  <tr v-for="c in bastionCredList" :key="c.id">
+                    <td>{{ c.name }}</td>
+                    <td>{{ c.username }}</td>
+                    <td><span class="tag" :class="c.auth_type==='password'?'tag-success':'tag-platform'">{{ c.auth_type==='password'?'密码':'私钥' }}</span></td>
+                    <td>
+                      <button class="btn btn-text btn-sm" @click="openBastionCredModal(c)">编辑</button>
+                      <button class="btn btn-text btn-sm" style="color:#ea4335" @click="deleteBastionCred(c)">删除</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <!-- ========== 堡垒机 - SSH终端 ========== -->
+          <template v-if="currentTab === 'bastionTerminal'">
+            <div style="display:flex; flex-direction:column; flex:1; min-height:0; margin:-24px; padding:0; background:#1e1e1e; overflow:hidden;">
+              <div style="display:flex; align-items:center; justify-content:space-between; padding:8px 16px; background:#2d2d2d; border-bottom:1px solid #444; color:#ccc; font-size:13px; flex-shrink:0;">
+                <div style="flex:1; min-width:0; overflow:hidden; display:flex; align-items:center; gap:8px;">
+                  <span style="color:#4ec9b0; white-space:nowrap;">🔐 {{ bastionTerminalAsset.name }}</span>
+                  <span style="color:#888; white-space:nowrap;">{{ bastionTerminalAsset.ip }}:{{ bastionTerminalAsset.port }}</span>
+                  <span style="color:#888;font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ bastionTerminalStatus }}</span>
+                </div>
+                <div style="display:flex; gap:8px; flex-shrink:0; margin-left:12px;">
+                  <div class="cust-sel" style="min-width:160px"><div class="cust-sel-trigger" @click.stop="bastionNetDrpOpen=!bastionNetDrpOpen;bastionCredDrpOpen=false;bastionConnectCredDrpOpen=false">{{ bastionTerminalNetworkLabel(bastionTerminalNetwork) }} <span style="color:#9aa0a6;margin-left:6px;font-size:12px;">{{ bastionTerminalNetIp(bastionTerminalNetwork) }}</span> <span class="cust-sel-arrow">▼</span></div><div class="cust-sel-drop" :class="{ open: bastionNetDrpOpen }" @wheel.stop style="min-width:210px"><div class="cust-sel-item" v-if="bastionTerminalAsset.public_ip" :class="{sel:bastionTerminalNetwork==='public'}" @click.stop="bastionTerminalNetwork='public';bastionNetDrpOpen=false;onBastionNetworkChange()"><span class="net-opt"><span class="dot" style="background:#4285f4"></span>公网</span> <span style="color:#9aa0a6;margin-left:8px;white-space:nowrap;">{{ bastionTerminalAsset.public_ip }}</span></div><div class="cust-sel-item" v-if="bastionTerminalAsset.private_ip" :class="{sel:bastionTerminalNetwork==='private'}" @click.stop="bastionTerminalNetwork='private';bastionNetDrpOpen=false;onBastionNetworkChange()"><span class="net-opt"><span class="dot" style="background:#34a853"></span>内网</span> <span style="color:#9aa0a6;margin-left:8px;white-space:nowrap;">{{ bastionTerminalAsset.private_ip }}</span></div><div class="cust-sel-item" v-if="bastionTerminalAsset.eip" :class="{sel:bastionTerminalNetwork==='eip'}" @click.stop="bastionTerminalNetwork='eip';bastionNetDrpOpen=false;onBastionNetworkChange()"><span class="net-opt"><span class="dot" style="background:#fbbc04"></span>弹性</span> <span style="color:#9aa0a6;margin-left:8px;white-space:nowrap;">{{ bastionTerminalAsset.eip }}</span></div></div></div>
+                  <div class="cust-sel" style="min-width:120px"><div class="cust-sel-trigger" @click.stop="bastionCredDrpOpen=!bastionCredDrpOpen;bastionNetDrpOpen=false;bastionConnectCredDrpOpen=false" style="min-width:100px;max-width:180px;overflow:hidden;text-overflow:ellipsis">{{ selCredLabel(bastionTerminalCredList, bastionTerminalCredId) }} <span class="cust-sel-arrow">▼</span></div><div class="cust-sel-drop" :class="{ open: bastionCredDrpOpen }" @wheel.stop style="min-width:180px"><div class="cust-sel-item" v-for="c in bastionTerminalCredList" :key="c.id" :class="{sel:bastionTerminalCredId===c.id}" @click.stop="bastionTerminalCredId=c.id;bastionCredDrpOpen=false;reconnectBastion()">🔑 {{ c.name }}({{ c.username }})</div></div></div>
+                  <button class="btn btn-sm" @click="toggleBastionFiles" title="文件管理" style="background:#444;color:#ccc;border-color:#555; white-space:nowrap;">{{ bastionFileVisible ? '📂' : '📁' }}</button>
+                  <button class="btn btn-default btn-sm" @click="bastionToggleConnection" :style="{ background: bastionTerminalStatus.includes('断开') ? '#1a73e8' : '#444', color:'#ccc', borderColor:'#555', whiteSpace:'nowrap' }">{{ bastionTerminalStatus.includes('断开') ? '重连' : '断开' }}</button>
+                  <button class="btn btn-sm" @click="goTab('/assets/pages/bastion.html')" title="主机" style="background:#333;color:#ccc;border-color:#555;font-size:15px;padding:2px 7px;">🖥</button>
+                </div>
+              </div>
+              <!-- 终端 + 文件抽屉 -->
+              <div style="flex:1; min-height:0; display:flex; overflow:hidden;">
+                <!-- 终端区域 -->
+                <div id="bastion-terminal" style="flex:1; padding:4px; min-width:0; overflow:hidden;"></div>
+                <!-- 拖拽调整宽度手柄 -->
+                <div v-if="bastionFileVisible" class="bastion-file-handle" @mousedown="onFileResizeStart"></div>
+                <!-- 文件抽屉（右侧） -->
+                <div class="bastion-file-drawer" :class="{ open: bastionFileVisible }" :style="{ width: bastionFileVisible ? bastionFileWidth + 'px' : '0' }">
+                  <div class="bastion-file-drawer-inner" @dragover.prevent @dragenter.prevent @drop.prevent="onFileDrop" :class="{ 'dragover': bastionFileDragover }">
+                    <div style="display:flex; gap:6px; align-items:center; margin-bottom:10px; flex-shrink:0;">
+                      <button class="btn btn-xs btn-default" @click="bastionFileUp" :disabled="bastionFilePath === '/'" title="上级目录">↑</button>
+                      <input type="text" class="input" v-model="bastionFileInput" @keyup.enter="gotoBastionFilePath" placeholder="/" style="flex:1; min-width:0; background:#1a1a2e; color:#ccc; border-color:#555; padding:3px 6px; font-size:12px; font-family:Consolas,monospace;" />
+                      <label class="btn btn-xs" :class="{ 'btn-uploading': bastionFileUploading }" style="cursor:pointer; white-space:nowrap; background:#4285f4; color:#fff; border-radius:4px; padding:4px 8px; font-size:12px;">上传<input type="file" @change="uploadBastionFile" :disabled="bastionFileUploading" style="display:none" /></label>
+                    </div>
+                    <!-- 上传进度条 -->
+                    <div v-if="bastionFileUploading" style="flex-shrink:0; margin-bottom:10px; background:#1a1a2e; border:1px solid #333; border-radius:6px; padding:8px 10px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="color:#ccc; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; margin-right:8px;">{{ bastionFileUploadName }}</span>
+                        <span style="color:#aaa; font-size:11px; flex-shrink:0;">{{ bastionFileUploadProgress }}%</span>
+                      </div>
+                      <div style="height:4px; background:#333; border-radius:2px; overflow:hidden;">
+                        <div :style="{ width: bastionFileUploadProgress + '%', height:'100%', background:'#4285f4', borderRadius:'2px', transition:'width 0.2s' }"></div>
+                      </div>
+                      <div v-if="bastionFileUploadQueue > 1" style="color:#888; font-size:11px; margin-top:4px;">队列中还有 {{ bastionFileUploadQueue - 1 }} 个文件</div>
+                    </div>
+                    <div style="flex:1; overflow-y:auto; min-height:0;">
+                      <div v-if="bastionFileLoading" class="text-center py-20" style="color:#999;">加载中...</div>
+                      <div v-else-if="bastionFileList.length === 0" class="text-center py-20" style="color:#666;">空目录</div>
+                      <div v-for="f in bastionFileList" :key="f.name" class="bastion-file-row" :class="{ selected: bastionFileSelected === f.name }" @click="selectBastionFile(f)" :draggable="!f.is_dir" @dragstart="onFileDragStart($event, f)" @mousedown="onFileMouseDown($event)">
+                        <span v-if="f.is_dir">📁</span><span v-else>📄</span>
+                        <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ f.is_dir ? f.name + '/' : f.name }}</span>
+                        <span class="text-sm" style="color:#888; flex-shrink:0;">{{ f.is_dir ? '' : formatFileSize(f.size) }}</span>
+                      </div>
+                    </div>
+                    <!-- 选中文件的操作栏 -->
+                    <div v-if="bastionFileSelected && !bastionFileSelectedIsDir" style="flex-shrink:0; padding-top:8px; border-top:1px solid #444; display:flex; gap:6px;">
+                      <button class="btn btn-primary btn-sm" @click="downloadSelectedBastionFile">⬇ 下载 {{ bastionFileSelected }}</button>
+                      <button class="btn btn-default btn-sm" @click="bastionFileSelected = ''">取消</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+
+        </main>
+
+        <!-- ===== 阿里云式侧边导航抽屉：收起时只剩左缘三角按钮 ===== -->
+        <button class="ali-edge-triangle" v-if="!drawerOpen" @click="drawerOpen = true" title="展开导航抽屉">▶</button>
+        <div class="ali-mask" v-if="drawerOpen" @click="drawerOpen = false"></div>
+        <aside class="ali-drawer" :class="{ open: drawerOpen }">
+          <div class="ali-drawer-rail">
+            <div class="ali-drawer-rail-head">我的资源</div>
+            <div class="ali-drawer-cat" :class="{ active: drawerCategory === 'favorites' }" @click="drawerCategory = 'favorites'">★ 我的收藏</div>
+            <div class="ali-drawer-rail-title">产品与服务</div>
+            <div class="ali-drawer-cat" v-for="cat in drawerCats" :key="cat.key" :class="{ active: drawerCategory === cat.key }" @click="drawerCategory = cat.key">{{ cat.name }}</div>
+          </div>
+          <div class="ali-drawer-content">
+            <div class="ali-drawer-content-head">
+              <h2>{{ drawerTitle }}</h2>
+              <button class="ali-drawer-close" @click="drawerOpen = false">✕</button>
+            </div>
+            <div class="ali-drawer-panel">
+              <template v-if="drawerCategory === 'favorites'">
+                <div class="ali-block">
+                  <div class="ali-block-title">我的收藏</div>
+                  <div class="ali-chips">
+                    <a class="ali-chip" v-for="v in favorites" :key="v.path" @click="goTab(v.path)">{{ v.name }}</a>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div class="ali-block" v-if="drawerCategory === 'all'">
+                  <div class="ali-block-title">最近访问</div>
+                  <div class="ali-chips">
+                    <a class="ali-chip" v-for="v in recentVisits" :key="v.path" @click="goTab(v.path)">{{ v.name }}</a>
+                  </div>
+                </div>
+                <div class="ali-group" v-for="g in filteredWorkbenchGroups" :key="g.key">
+                  <div class="ali-group-head"><i class="ali-group-icon" :class="g.icon"></i>{{ g.title }}</div>
+                  <div class="ali-group-grid">
+                    <a class="ali-res-card" v-for="item in g.items" :key="g.key + item.label" @click="goTab(item.path)">
+                      <span class="ali-res-title">{{ item.label }} <span class="ali-arrow">›</span></span>
+                      <span class="ali-res-meta">{{ item.count }}</span>
+                    </a>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- 详情弹窗 -->
+      <div class="modal-overlay" v-if="detailVisible" @click.self="detailVisible = false">
+        <div class="modal">
+          <div class="modal-header">
+            <h2>域名详情</h2>
+            <button class="btn-close" @click="detailVisible = false">&times;</button>
+          </div>
+          <div class="modal-body" v-if="detail">
+            <div class="detail-grid">
+              <div class="detail-item"><label>域名</label><span class="detail-value domain">{{ detail.domain_name }}</span></div>
+              <div class="detail-item"><label>平台</label><span>{{ detail.platform }}</span></div>
+              <div class="detail-item"><label>账号</label><span>{{ detail.account_name }}（{{ detail.account_id }}）</span></div>
+              <div class="detail-item"><label>所有者</label><span>{{ detail.owner || '-' }}</span></div>
+              <div class="detail-item"><label>注册日期</label><span>{{ formatDate(detail.registration_date) }}</span></div>
+              <div class="detail-item"><label>到期日期</label><span>{{ formatDate(detail.expiration_date) }}</span></div>
+              <div class="detail-item"><label>剩余天数</label><span :class="getDaysClass(detail.expiration_days_left)">{{ detail.expiration_days_left }} 天</span></div>
+              <div class="detail-item"><label>到期状态码</label><span>{{ detail.expiration_status_code || '-' }}</span></div>
+              <div class="detail-item"><label>自动续费</label><span>{{ detail.auto_renew_enabled ? '已开启' : '未开启' }}</span></div>
+              <div class="detail-item"><label>状态</label>
+                <span v-if="detail.is_offline === 1" class="tag tag-offline">已下线</span>
+                <span v-else-if="detail.expiration_days_left < 0" class="tag tag-danger">已过期</span>
+                <span v-else-if="detail.expiration_days_left <= 30" class="tag tag-warning">即将到期</span>
+                <span v-else class="tag tag-success">正常</span>
+              </div>
+              <div class="detail-item">
+                <label>备注</label>
+                <div v-if="isAdmin" style="display:flex; align-items:center; gap:6px;">
+                  <input type="text" class="input" v-model="detail.remark" placeholder="填写备注" maxlength="50" style="flex:1; max-width:300px;" />
+                  <button class="btn btn-primary btn-sm" @click="saveDomainRemark" :disabled="domainRemarkSaving">{{ domainRemarkSaving ? '保存中...' : '保存' }}</button>
+                </div>
+                <span v-else>{{ detail.remark || '-' }}</span>
+              </div>
+              <div class="detail-item"><label>创建时间</label><span>{{ formatDate(detail.created_at) }}</span></div>
+              <div class="detail-item"><label>更新时间</label><span>{{ formatDate(detail.updated_at) }}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- DNS记录添加/编辑右侧抽屉 -->
+      <div class="drawer-overlay" v-if="dnsFormVisible"></div>
+      <div class="drawer" :class="{ 'drawer-open': dnsFormVisible }">
+        <div class="drawer-header">
+          <h2>{{ dnsFormEditing ? '编辑记录' : '添加记录' }}</h2>
+          <button class="btn-close" @click="dnsFormVisible = false">&times;</button>
+        </div>
+        <div class="drawer-body">
+          <!-- 记录类型 -->
+          <div class="dns-form-group">
+            <label>记录类型</label>
+            <div class="dns-type-select">
+              <!-- Cloudflare：完整记录类型（与 CF 面板一致） -->
+              <select class="select" style="width:100%" v-model="dnsForm.type" v-if="dnsCurrentPlatform === 'cloudflare'">
+                <option value="A">A -- 将域名指向一个IPv4地址</option>
+                <option value="AAAA">AAAA -- 将域名指向一个IPv6地址</option>
+                <option value="CAA">CAA -- 证书授权记录</option>
+                <option value="CERT">CERT -- 证书记录</option>
+                <option value="CNAME">CNAME -- 将域名指向另一个域名</option>
+                <option value="DNSKEY">DNSKEY -- DNSSEC 密钥记录</option>
+                <option value="DS">DS -- DNSSEC 委派记录</option>
+                <option value="HTTPS">HTTPS -- HTTPS 服务记录</option>
+                <option value="LOC">LOC -- 地理位置记录</option>
+                <option value="MX">MX -- 将域名指向邮件服务器</option>
+                <option value="NAPTR">NAPTR -- 名称权威指针记录</option>
+                <option value="NS">NS -- 子域名DNS服务器</option>
+                <option value="OPENPGPKEY">OPENPGPKEY -- OpenPGP 公钥记录</option>
+                <option value="PTR">PTR -- 反向解析记录</option>
+                <option value="SMIMEA">SMIMEA -- S/MIME 证书记录</option>
+                <option value="SRV">SRV -- 服务定位记录</option>
+                <option value="SSHFP">SSHFP -- SSH 密钥指纹记录</option>
+                <option value="SVCB">SVCB -- 服务绑定记录</option>
+                <option value="TLSA">TLSA -- TLS 证书绑定记录</option>
+                <option value="TXT">TXT -- 文本记录</option>
+                <option value="URI">URI -- URI 重定向记录</option>
+              </select>
+              <!-- 阿里云 / 腾讯云 -->
+              <select class="select" style="width:100%" v-model="dnsForm.type" v-else>
+                <option value="A">A -- 将域名指向一个IPv4地址</option>
+                <option value="AAAA">AAAA -- 将域名指向一个IPv6地址</option>
+                <option value="CNAME">CNAME -- 将域名指向另一个域名</option>
+                <option value="MX">MX -- 将域名指向邮件服务器</option>
+                <option value="TXT">TXT -- 文本记录</option>
+                <option value="NS">NS -- 子域名DNS服务器</option>
+                <option value="SRV">SRV -- 服务定位记录</option>
+                <option value="CAA">CAA -- 证书授权记录</option>
+                <option value="PTR">PTR -- 反向解析记录</option>
+                <option value="显性URL">显性URL -- 301重定向</option>
+                <option value="隐性URL">隐性URL -- iframe转发</option>
+              </select>
+            </div>
+            <div class="form-hint" style="margin-top:6px;font-size:12px;color:#999;">
+              <template v-if="dnsCurrentPlatform === 'cloudflare' && ['SRV','LOC','HTTPS','SVCB','NAPTR'].includes(dnsForm.type)">该类型为结构化记录，请直接在 Cloudflare 面板配置</template>
+              <template v-else-if="dnsForm.type === 'A'">A记录的记录值为IPv4形式（如10.10.10.10）</template>
+              <template v-else-if="dnsForm.type === 'AAAA'">AAAA记录的记录值为IPv6形式</template>
+              <template v-else-if="dnsForm.type === 'CNAME'">CNAME记录的记录值为域名形式（如example.com）</template>
+              <template v-else-if="dnsForm.type === 'MX'">MX记录的记录值为邮件服务器域名</template>
+              <template v-else-if="dnsForm.type === 'TXT'">TXT记录的记录值为任意文本</template>
+              <template v-else-if="dnsForm.type === 'NS'">NS记录的记录值为DNS服务器域名</template>
+              <template v-else-if="dnsForm.type === '显性URL' || dnsForm.type === '隐性URL'">URL记录的记录值为http(s)://开头的完整网址</template>
+              <template v-else>请输入对应的记录值</template>
+            </div>
+          </div>
+
+          <!-- 主机记录 -->
+          <div class="dns-form-group">
+            <label>主机记录</label>
+            <div class="dns-input-wrap">
+              <input type="text" class="input" v-model="dnsForm.rr" placeholder="如 www、@、*" style="border-radius:6px 0 0 6px;" />
+              <span class="dns-domain-suffix">.{{ dnsForm.domain_name }}</span>
+            </div>
+          </div>
+
+          <!-- 代理状态（Cloudflare 橙云，仅 A/AAAA/CNAME 支持） -->
+          <div class="dns-form-group" v-if="dnsCurrentPlatform === 'cloudflare' && ['A','AAAA','CNAME'].includes(dnsForm.type)">
+            <label>代理状态</label>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-weight:normal;">
+                <input type="checkbox" v-model="dnsForm.proxied" style="width:16px;height:16px;accent-color:#f6821f;cursor:pointer" />
+                <span :style="{ color: dnsForm.proxied ? '#f6821f' : '#64748b', fontWeight: dnsForm.proxied ? 600 : 400 }">{{ dnsForm.proxied ? '已代理' : '仅DNS' }}</span>
+              </label>
+              <span class="form-hint" style="font-size:12px;color:#999;">开启后流量经过 Cloudflare CDN（橙云），隐藏真实 IP；仅 A/AAAA/CNAME 支持</span>
+            </div>
+          </div>
+
+          <!-- 解析请求来源（仅阿里云/腾讯云有线路概念；Cloudflare/AWS 隐藏） -->
+          <div class="dns-form-group" v-if="dnsCurrentPlatform === 'aliyun' || dnsCurrentPlatform === 'tencent'">
+            <label>解析请求来源</label>
+            <div style="display:flex; gap:16px; align-items:center;">
+              <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-weight:normal; font-size:14px;">
+                <input type="radio" v-model="dnsForm.line_type" value="default" /> 默认
+              </label>
+              <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-weight:normal; font-size:14px;">
+                <input type="radio" v-model="dnsForm.line_type" value="region" /> 运营商
+              </label>
+              <template v-if="dnsForm.line_type === 'region'">
+                <select class="select select-sm" v-model="dnsForm.line">
+                  <option value="internal">中国地区</option>
+                  <option value="oversea">境外</option>
+                </select>
+              </template>
+            </div>
+          </div>
+
+          <!-- 记录值（始终可见，不在折叠框内） -->
+          <div class="dns-form-group">
+            <label>记录值 <span class="required">*</span></label>
+            <div class="form-hint" style="margin-bottom:8px;font-size:12px;color:#64748b;">
+              {{ getDnsValueHint(dnsForm.type) }}
+            </div>
+            <!-- 权重模式：单行记录值输入 -->
+            <template v-if="dnsForm.load_balance === 'weight'">
+              <input type="text" class="input input-full" :class="dnsValueValid === false ? 'input-error' : (dnsForm.value && dnsValueValid === true ? 'input-success' : '')"
+                v-model="dnsForm.value" :placeholder="getDnsValuePlaceholder(dnsForm.type)"
+                @input="dnsValueValid = validateDnsValue(dnsForm.type, dnsForm.value)" />
+              <div class="form-hint" style="margin-top:4px;font-size:12px;" v-if="dnsForm.value && dnsValueValid === false" :style="{color:'#ea4335'}">
+                ❌ 格式错误：{{ getDnsValueError(dnsForm.type) }}
+              </div>
+            </template>
+            <!-- 轮询模式：多行记录值表格（仅阿里云/腾讯云） -->
+            <template v-if="dnsForm.load_balance === 'round_robin' && dnsCurrentPlatform !== 'cloudflare' && dnsCurrentPlatform !== 'aws'">
+              <table class="dns-record-table">
+                <thead>
+                  <tr>
+                    <th style="width:40%">记录值</th>
+                    <th style="width:22%">状态</th>
+                    <th>备注</th>
+                    <th style="width:50px">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(val, idx) in roundRobinValues" :key="idx">
+                    <td><input type="text" class="input" :class="val.value && dnsValidateRoundRobinValue(val.value) === false ? 'input-error' : ''" v-model="val.value" :placeholder="getDnsValuePlaceholder(dnsForm.type)" :style="{width:'100%'}" /></td>
+                    <td>
+                      <select class="select select-sm" v-model="val.status" style="width:100%">
+                        <option value="ENABLE">启用</option>
+                        <option value="DISABLE">禁用</option>
+                      </select>
+                    </td>
+                    <td><input type="text" class="input" v-model="val.remark" placeholder="备注" :style="{width:'100%'}" /></td>
+                    <td><button class="btn btn-text btn-sm" style="color:#ea4335" @click="removeRoundRobinValue(idx)">删除</button></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="dns-add-record-row">
+                <button class="btn-link" @click="addRoundRobinValue">+ 添加记录值</button>
+              </div>
+            </template>
+          </div>
+
+          <!-- TTL / 负载策略 / MX优先级（高级配置） -->
+          <div class="dns-collapse-panel" :class="{ expanded: dnsCollapseOpen }">
+            <div class="dns-collapse-header" @click="dnsCollapseOpen = !dnsCollapseOpen">
+              <span class="collapse-arrow" :class="{ open: dnsCollapseOpen }">▶</span>
+              <span class="collapse-title">TTL时间 / 负载策略 / MX优先级（高级配置）</span>
+            </div>
+            <div class="dns-collapse-body" :class="{ open: dnsCollapseOpen }">
+              <!-- TTL时间 -->
+              <div class="dns-form-group">
+                <label>TTL时间</label>
+                <div class="ttl-quick-options">
+                  <template v-if="dnsCurrentPlatform === 'cloudflare'">
+                    <span class="ttl-quick-btn" :class="{ active: dnsForm.ttl === 1 }" @click="dnsForm.ttl = 1">自动</span>
+                  </template>
+                  <span class="ttl-quick-btn" :class="{ active: dnsForm.ttl === 60 }" @click="dnsForm.ttl = 60">1分钟</span>
+                  <span class="ttl-quick-btn" :class="{ active: dnsForm.ttl === 600 }" @click="dnsForm.ttl = 600">10分钟（推荐）</span>
+                  <span class="ttl-quick-btn" :class="{ active: dnsForm.ttl === 3600 }" @click="dnsForm.ttl = 3600">1小时</span>
+                  <span class="ttl-quick-btn" :class="{ active: dnsForm.ttl === 43200 }" @click="dnsForm.ttl = 43200">12小时</span>
+                  <span class="ttl-quick-btn" :class="{ active: dnsForm.ttl === 86400 }" @click="dnsForm.ttl = 86400">1天</span>
+                </div>
+                <div class="ttl-custom-row">
+                  <input type="number" class="input" v-model.number="dnsForm.ttl" placeholder="600" min="1" max="86400" />
+                  <span class="ttl-unit">分钟</span>
+                  <span v-if="dnsCurrentPlatform === 'cloudflare'" style="font-size:12px;color:#999;margin-left:8px;">填 1 为自动</span>
+                </div>
+              </div>
+
+              <!-- 记录值负载策略（仅阿里云/腾讯云有权重/轮询；Cloudflare/AWS 隐藏） -->
+              <div class="dns-form-group" v-if="dnsCurrentPlatform === 'aliyun' || dnsCurrentPlatform === 'tencent'">
+                <label>记录值负载策略</label>
+                <div style="display:flex; gap:16px; align-items:center; margin-bottom:12px;">
+                  <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-weight:normal; font-size:14px;">
+                    <input type="radio" v-model="dnsForm.load_balance" value="weight" /> 权重
+                  </label>
+                  <label style="display:flex; align-items:center; gap:4px; cursor:pointer; font-weight:normal; font-size:14px;">
+                    <input type="radio" v-model="dnsForm.load_balance" value="round_robin" /> 轮询
+                  </label>
+                </div>
+
+                <!-- 权重模式下显示权重值输入 -->
+                <template v-if="dnsForm.load_balance === 'weight'">
+                  <div class="dns-form-group">
+                    <label>权重值</label>
+                    <input type="number" class="input input-full" v-model.number="dnsForm.weight" placeholder="默认1" min="1" max="100" />
+                  </div>
+                </template>
+              </div>
+
+              <!-- MX优先级 -->
+              <div class="dns-form-group" v-if="dnsForm.type === 'MX'">
+                <label>MX优先级</label>
+                <input type="number" class="input input-full" v-model.number="dnsForm.priority" placeholder="如 10" min="1" max="50" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 备注 -->
+          <div class="dns-form-group">
+            <label>备注</label>
+            <textarea class="input input-full" v-model="dnsForm.remark" placeholder="可选，备注信息" rows="3" style="resize:vertical;" :maxlength="dnsCurrentPlatform === 'cloudflare' ? 100 : 50"></textarea>
+            <div class="remark-counter">{{ (dnsForm.remark || '').length }}/{{ dnsCurrentPlatform === 'cloudflare' ? 100 : 50 }}</div>
+            <div v-if="dnsCurrentPlatform === 'cloudflare'" class="form-hint" style="margin-top:4px;font-size:12px;color:#999;">注释仅作参考，不会影响 DNS 解析</div>
+          </div>
+        </div>
+        <div class="drawer-footer">
+          <button class="btn btn-default" @click="dnsFormVisible = false">取消</button>
+          <button class="btn btn-primary" @click="saveDnsRecord" :disabled="dnsFormSaving">{{ dnsFormSaving ? '保存中...' : '确定' }}</button>
+        </div>
+      </div>
+      <!-- 用户新增/编辑弹窗 -->
+      <div class="modal-overlay" v-if="userModalVisible">
+        <div class="modal">
+          <div class="modal-header">
+            <h2>{{ userEditing ? '编辑用户' : '新增用户' }}</h2>
+            <button class="btn-close" @click="userModalVisible = false">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-vertical">
+              <div class="form-group">
+                <label>用户名 <span class="text-danger">*</span></label>
+                <input type="text" class="input input-full" v-model="userForm.username" placeholder="请输入用户名" />
+              </div>
+              <div class="form-group">
+                <label>密码 <span v-if="!userEditing" class="text-danger">*</span><span v-else class="text-gray" style="font-weight:400">（留空则不修改）</span></label>
+                <input type="password" class="input input-full" v-model="userForm.password" placeholder="请输入密码" />
+              </div>
+              <div class="form-group">
+                <label>邮箱</label>
+                <input type="email" class="input input-full" v-model="userForm.email" placeholder="请输入邮箱" />
+              </div>
+              <div class="form-group">
+                <label>真实姓名 <span class="text-gray" style="font-weight:400">（选填）</span></label>
+                <input type="text" class="input input-full" v-model="userForm.real_name" placeholder="请输入真实姓名" />
+              </div>
+              <div class="form-group">
+                <label>角色</label>
+                <div class="cust-sel" style="width:100%"><div class="cust-sel-trigger" @click.stop="userRoleDrpOpen=!userRoleDrpOpen" style="width:100%;justify-content:space-between">{{ userForm.role==='admin'?'管理员':(userForm.role==='readonly'?'只读用户':'普通用户') }} <span class="cust-sel-arrow">▼</span></div><div class="cust-sel-drop" :class="{ open: userRoleDrpOpen }" @wheel.stop style="width:100%"><div class="cust-sel-item" :class="{sel:userForm.role==='user'}" @click.stop="userForm.role='user';userRoleDrpOpen=false">👤 普通用户</div><div class="cust-sel-item" :class="{sel:userForm.role==='admin'}" @click.stop="userForm.role='admin';userRoleDrpOpen=false">🔧 管理员</div><div class="cust-sel-item" :class="{sel:userForm.role==='readonly'}" @click.stop="userForm.role='readonly';userRoleDrpOpen=false">👁 只读用户</div></div></div>
+              </div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+              <button class="btn btn-default" @click="userModalVisible = false">取消</button>
+              <button class="btn btn-primary" @click="saveUser" :disabled="userSaving">{{ userSaving ? '保存中...' : '保存' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 个人资料弹窗 -->
+      <div class="modal-overlay" v-if="profileVisible" @click.self="profileVisible = false">
+        <div class="modal" style="max-width: 460px;">
+          <div class="modal-header">
+            <h2>个人资料</h2>
+            <button class="btn-close" @click="profileVisible = false">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-vertical">
+              <div class="form-group">
+                <label>用户名</label>
+                <input type="text" class="input input-full" :value="profile.username" disabled />
+              </div>
+              <div class="form-group">
+                <label>角色</label>
+                <input type="text" class="input input-full" :value="userRoleLabel(profile.role)" disabled />
+              </div>
+              <div class="form-group">
+                <label>邮箱 <span class="text-danger">*</span></label>
+                <input type="email" class="input input-full" v-model="profile.email" placeholder="请输入邮箱" />
+              </div>
+              <div class="form-group">
+                <label>真实姓名 <span class="text-gray" style="font-weight:400">（选填）</span></label>
+                <input type="text" class="input input-full" v-model="profile.real_name" placeholder="请输入真实姓名" />
+              </div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+              <button class="btn btn-default" @click="profileVisible = false">取消</button>
+              <button class="btn btn-primary" @click="saveProfile" :disabled="profileSaving">{{ profileSaving ? '保存中...' : '保存' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 修改密码弹窗 -->
+      <div class="modal-overlay" v-if="passwordVisible" @click.self="passwordVisible = false">
+        <div class="modal" style="max-width: 460px;">
+          <div class="modal-header">
+            <h2>修改密码</h2>
+            <button class="btn-close" @click="passwordVisible = false">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-vertical">
+              <div class="form-group">
+                <label>原密码 <span class="text-danger">*</span></label>
+                <input type="password" class="input input-full" v-model="passwordForm.old_password" placeholder="请输入原密码" autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label>新密码 <span class="text-danger">*</span> <span class="text-gray" style="font-weight:400">（至少 6 位）</span></label>
+                <input type="password" class="input input-full" v-model="passwordForm.new_password" placeholder="请输入新密码" autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label>确认新密码 <span class="text-danger">*</span></label>
+                <input type="password" class="input input-full" v-model="passwordForm.confirm_password" placeholder="请再次输入新密码" autocomplete="off" />
+              </div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+              <button class="btn btn-default" @click="passwordVisible = false">取消</button>
+              <button class="btn btn-primary" @click="savePassword" :disabled="passwordSaving">{{ passwordSaving ? '保存中...' : '确认修改' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+          <!-- 云平台账号新增/编辑弹窗 -->
+          <div class="modal-overlay" v-if="accountModalVisible">
+            <div class="modal" style="max-width: 720px;">
+              <div class="modal-header">
+                <h2>{{ accountEditing ? '编辑账号' : '新增账号' }}</h2>
+                <button class="btn-close" @click="accountModalVisible = false">&times;</button>
+              </div>
+              <div class="modal-body">
+                <div class="form-vertical">
+                  <div class="form-group">
+                    <label>平台 <span class="text-danger">*</span></label>
+                    <select class="select" style="width:100%" v-model="accountForm.platform" @change="onAccountPlatformChange">
+                      <option value="aliyun">阿里云</option>
+                      <option value="aws">AWS</option>
+                      <option value="tencent">腾讯云</option>
+                      <option value="cloudflare">Cloudflare</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>账号名称 <span class="text-danger">*</span> <span class="text-gray text-sm">（用于平台筛选，必填）</span></label>
+                    <input type="text" class="input input-full" v-model="accountForm.name" placeholder="便于识别的别名（必填）" />
+                  </div>
+                  <div class="form-group">
+                    <label>{{ accountForm.platform === 'cloudflare' ? 'Account ID' : 'AccessKey' }} <span v-if="!accountEditing" class="text-danger">*</span><span v-else class="text-gray" style="font-weight:400">（留空则不修改）</span></label>
+                    <input type="text" class="input input-full" v-model="accountForm.access_key" :placeholder="accountForm.platform === 'cloudflare' ? 'Cloudflare Account ID（32位十六进制）' : '云平台AccessKey'" />
+                  </div>
+                  <div class="form-group">
+                    <label>{{ accountForm.platform === 'cloudflare' ? 'API Token' : 'AccessSecret' }} <span v-if="!accountEditing" class="text-danger">*</span><span v-else class="text-gray" style="font-weight:400">（留空则不修改；AccessKey 与 AccessSecret 须成对更换）</span></label>
+                    <input type="text" class="input input-full" v-model="accountForm.access_secret" :placeholder="accountForm.platform === 'cloudflare' ? 'Cloudflare API Token（Zone:Read 权限）' : '云平台AccessSecret'" autocomplete="off" />
+                    <p v-if="accountForm.platform === 'cloudflare'" class="text-gray text-sm" style="margin:6px 0 0;">
+                      Cloudflare 面板「My Profile → API Tokens」创建 Token，授予 Zone → Zone → Read；
+                      Account ID 即上方 AccessKey 栏（已按平台自动改名）填写内容，用于按账户过滤域名。
+                    </p>
+                  </div>
+                  <div class="form-group" v-if="accountForm.platform !== 'cloudflare' && accountForm.platform !== 'aws'">
+                    <label>站点 <span class="text-gray text-sm">（请按账号实际归属选择国内站/国际站）</span></label>
+                    <select class="select" style="width:160px" v-model="accountForm.site">
+                      <option value="cn">国内站</option>
+                      <option value="intl">国际站</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>状态</label>
+                    <select class="select" style="width:100%" v-model.number="accountForm.enabled">
+                      <option :value="1">启用</option>
+                      <option :value="0">禁用</option>
+                    </select>
+                  </div>
+
+                </div>
+                <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+                  <button class="btn btn-default" @click="accountModalVisible = false">取消</button>
+                  <button class="btn btn-primary" @click="saveAccount" :disabled="accountSaving">{{ accountSaving ? '保存中...' : '保存' }}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+
+      <!-- 资源页「按账号同步」弹窗（CDN/DNS/ECS/域名 共用，支持全选或选择单个账号） -->
+      <div class="modal-overlay" v-if="resourceSyncVisible">
+        <div class="modal" style="max-width: 480px;">
+          <div class="modal-header">
+            <h2>选择账号同步{{ resourceSyncTypeName }}</h2>
+            <button class="btn-close" @click="resourceSyncVisible = false">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p class="text-gray text-sm" style="margin:0 0 14px;">勾选要同步的账号（默认全选）；未勾选的不会同步。云平台不支持某资源时会自动跳过。</p>
+            <label style="display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid #d0d7de; border-radius:8px; margin-bottom:8px; cursor:pointer; font-weight:600;">
+              <input type="checkbox" v-model="resourceSyncAll" style="width:16px;height:16px;" />
+              <span>全选（{{ resourceSyncSelected.length }}/{{ resourceSyncList.length }}）</span>
+            </label>
+            <div style="max-height:320px; overflow-y:auto;">
+              <label v-for="a in resourceSyncList" :key="a.id" style="display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid #e8e8e8; border-radius:8px; margin-bottom:6px; cursor:pointer; font-weight:normal;">
+                <input type="checkbox" :value="a.account_id" v-model="resourceSyncSelected" style="width:16px;height:16px;" />
+                <span>{{ a.name }}</span>
+                <span class="tag tag-platform" style="margin-left:auto;">{{ accountPlatformLabel(a.platform) }}</span>
+              </label>
+              <p v-if="resourceSyncList.length === 0" class="text-gray text-sm text-center py-20">没有可用的启用账号</p>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-default" @click="resourceSyncVisible = false">取消</button>
+            <button class="btn btn-primary" @click="submitResourceSync" :disabled="resourceSyncSelected.length === 0">开始同步（{{ resourceSyncSelected.length }}）</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 堡垒机用户组编辑弹窗 -->
+      <div class="modal-overlay" v-if="bastionGroupModalVisible">
+        <div class="modal">
+          <div class="modal-header"><h2>{{ bastionGroupEditing ? '编辑用户组' : '新增用户组' }}</h2><button class="btn-close" @click="bastionGroupModalVisible = false">&times;</button></div>
+          <div class="modal-body">
+            <div class="form-vertical">
+              <div class="form-group"><label>名称 <span class="text-danger">*</span></label><input type="text" class="input input-full" v-model="bastionGroupForm.name" /></div>
+              <div class="form-group"><label>描述</label><input type="text" class="input input-full" v-model="bastionGroupForm.description" /></div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+              <button class="btn btn-default" @click="bastionGroupModalVisible = false">取消</button>
+              <button class="btn btn-primary" @click="saveBastionGroup" :disabled="bastionGroupSaving">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 堡垒机用户组成员弹窗 -->
+      <div class="modal-overlay" v-if="bastionGroupMemberModalVisible">
+        <div class="modal">
+          <div class="modal-header"><h2>组成员 - {{ bastionGroupMemberName }}</h2><button class="btn-close" @click="bastionGroupMemberModalVisible = false">&times;</button></div>
+          <div class="modal-body">
+            <div class="table-wrapper" style="max-height:250px;overflow-y:auto;margin-bottom:12px">
+              <table class="table"><thead><tr><th>用户名</th><th>邮箱</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr v-if="bastionGroupMemberList.length === 0"><td colspan="3" class="text-center py-20 text-gray">暂无成员</td></tr>
+                <tr v-for="m in bastionGroupMemberList" :key="m.id"><td>{{ m.username }}</td><td class="text-sm text-gray">{{ m.email }}</td><td><button class="btn btn-text btn-sm" style="color:#ea4335" @click="removeBastionGroupMember(m)">移除</button></td></tr>
+              </tbody></table>
+            </div>
+            <div style="display:flex; gap:8px">
+              <select class="select" style="flex:1" v-model="bastionGroupAddUserId"><option :value="0" disabled>选择用户</option><option v-for="u in bastionAllUserList" :key="u.id" :value="u.id">{{ u.username }}</option></select>
+              <button class="btn btn-primary btn-sm" @click="addBastionGroupMember">添加</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 堡垒机用户组资产授权弹窗 -->
+      <div class="modal-overlay" v-if="bastionGroupAssetModalVisible">
+        <div class="modal" style="max-width:850px">
+          <div class="modal-header"><h2>授权管理 - {{ bastionGroupAssetName }}</h2><button class="btn-close" @click="bastionGroupAssetModalVisible = false">&times;</button></div>
+          <div class="modal-body">
+            <!-- Tab切换 -->
+            <div style="display:flex; gap:0; margin-bottom:16px; border-bottom:2px solid #e8eaed;">
+              <button class="btn btn-text" @click="bastionGroupAssetTab = 'assets'" :style="{ fontWeight: bastionGroupAssetTab === 'assets' ? '600' : '400', color: bastionGroupAssetTab === 'assets' ? '#1a73e8' : '#666', borderBottom: bastionGroupAssetTab === 'assets' ? '2px solid #1a73e8' : '2px solid transparent', marginBottom:'-2px', borderRadius:0, padding:'8px 20px' }">🖥 资产授权</button>
+              <button class="btn btn-text" @click="bastionGroupAssetTab = 'credentials'" :style="{ fontWeight: bastionGroupAssetTab === 'credentials' ? '600' : '400', color: bastionGroupAssetTab === 'credentials' ? '#1a73e8' : '#666', borderBottom: bastionGroupAssetTab === 'credentials' ? '2px solid #1a73e8' : '2px solid transparent', marginBottom:'-2px', borderRadius:0, padding:'8px 20px' }">🔑 凭证授权</button>
+            </div>
+
+            <!-- 资产授权 Tab -->
+            <template v-if="bastionGroupAssetTab === 'assets'">
+              <!-- 已授权资产列表 -->
+              <div style="margin-bottom:16px">
+                <h4 style="margin:0 0 8px 0;display:flex;justify-content:space-between;align-items:center">
+                  <span>已授权资产</span>
+                  <button v-if="bastionGroupAssetRemoveIds.length > 0" class="btn btn-danger btn-xs" @click="deleteBastionGroupAssetsBatch">批量移除({{ bastionGroupAssetRemoveIds.length }})</button>
+                </h4>
+                <div class="table-wrapper" style="max-height:200px;overflow-y:auto">
+                  <table class="table"><thead><tr><th style="width:36px"><input type="checkbox" @change="onToggleAllBastionAssets" :checked="bastionGroupAssetRemoveIds.length && bastionGroupAssetRemoveIds.length === bastionGroupAssetList.length" /></th><th>实例名称</th><th>公网IP</th><th>弹性IP</th><th>内网IP</th><th>来源</th></tr></thead>
+                  <tbody>
+                    <tr v-if="bastionGroupAssetList.length === 0"><td colspan="6" class="text-center py-20 text-gray">暂无授权资产</td></tr>
+                    <tr v-for="a in bastionGroupAssetList" :key="a.id">
+                      <td><input type="checkbox" :value="a.id" v-model="bastionGroupAssetRemoveIds" /></td>
+                      <td>{{ a.ecs_name || '-' }}</td>
+                      <td class="text-mono text-sm">{{ a.public_ip || '-' }}</td>
+                      <td class="text-mono text-sm">{{ a.eip_address || '-' }}</td>
+                      <td class="text-mono text-sm">{{ a.private_ip || '-' }}</td>
+                      <td><span class="tag tag-xs" :class="a.source_label === '手动' ? 'tag-success' : 'tag-default'">{{ a.source_label }}</span></td>
+                    </tr>
+                  </tbody></table>
+                </div>
+              </div>
+              <!-- 添加资产授权 -->
+              <div>
+                <h4 style="margin:0 0 8px 0">添加资产授权</h4>
+                <div class="table-wrapper" style="max-height:200px;overflow-y:auto;margin-bottom:8px">
+                  <table class="table"><thead><tr><th style="width:36px"><input type="checkbox" @change="onToggleAllBastionEcs" :checked="bastionGroupAssetNewIds.length && bastionGroupAssetNewIds.length === filteredAvailableEcsList.length" /></th><th>实例名称</th><th>公网IP</th><th>内网IP</th></tr></thead>
+                  <tbody>
+                    <tr v-if="filteredAvailableEcsList.length === 0"><td colspan="4" class="text-center py-20 text-gray">没有可授权的ECS</td></tr>
+                    <tr v-for="e in filteredAvailableEcsList" :key="e.id">
+                      <td><input type="checkbox" :value="e.id" v-model="bastionGroupAssetNewIds" /></td>
+                      <td>{{ e.instance_name || e.instance_id }}</td>
+                      <td class="text-mono text-sm">{{ e.public_ip_address || '-' }}</td>
+                      <td class="text-mono text-sm">{{ e.private_ip_address || '-' }}</td>
+                    </tr>
+                  </tbody></table>
+                </div>
+                <div style="text-align:right">
+                  <button class="btn btn-primary btn-sm" @click="addBastionGroupAsset" :disabled="bastionGroupAssetNewIds.length === 0">授权({{ bastionGroupAssetNewIds.length }})</button>
+                </div>
+              </div>
+            </template>
+
+            <!-- 凭证授权 Tab -->
+            <template v-if="bastionGroupAssetTab === 'credentials'">
+              <!-- 已授权凭证列表 -->
+              <div style="margin-bottom:16px">
+                <h4 style="margin:0 0 8px 0;display:flex;justify-content:space-between;align-items:center">
+                  <span>已授权凭证</span>
+                  <button v-if="bastionGroupCredRemoveIds.length > 0" class="btn btn-danger btn-xs" @click="deleteBastionGroupCredsBatch">批量移除({{ bastionGroupCredRemoveIds.length }})</button>
+                </h4>
+                <div class="table-wrapper" style="max-height:200px;overflow-y:auto">
+                  <table class="table"><thead><tr><th style="width:36px"><input type="checkbox" @change="onToggleAllBastionCreds" :checked="bastionGroupCredRemoveIds.length && bastionGroupCredRemoveIds.length === bastionGroupCredList.length" /></th><th>凭证名称</th><th>用户名</th><th>认证方式</th></tr></thead>
+                  <tbody>
+                    <tr v-if="bastionGroupCredList.length === 0"><td colspan="4" class="text-center py-20 text-gray">暂无授权凭证</td></tr>
+                    <tr v-for="c in bastionGroupCredList" :key="c.id">
+                      <td><input type="checkbox" :value="c.id" v-model="bastionGroupCredRemoveIds" /></td>
+                      <td>{{ c.credential_name }}</td>
+                      <td>{{ c.username }}</td>
+                      <td><span class="tag tag-xs" :class="c.auth_type==='password'?'tag-success':'tag-platform'">{{ c.auth_type==='password'?'密码':'私钥' }}</span></td>
+                    </tr>
+                  </tbody></table>
+                </div>
+              </div>
+              <!-- 添加凭证授权 -->
+              <div>
+                <h4 style="margin:0 0 8px 0">添加凭证授权</h4>
+                <div class="table-wrapper" style="max-height:200px;overflow-y:auto;margin-bottom:8px">
+                  <table class="table"><thead><tr><th style="width:36px"><input type="checkbox" @change="onToggleAllAvailableCreds" :checked="bastionGroupCredNewIds.length && bastionGroupCredNewIds.length === filteredAvailableCreds.length" /></th><th>凭证名称</th><th>用户名</th><th>认证方式</th></tr></thead>
+                  <tbody>
+                    <tr v-if="filteredAvailableCreds.length === 0"><td colspan="4" class="text-center py-20 text-gray">所有凭证已授权</td></tr>
+                    <tr v-for="c in filteredAvailableCreds" :key="c.id">
+                      <td><input type="checkbox" :value="c.id" v-model="bastionGroupCredNewIds" /></td>
+                      <td>{{ c.name }}</td>
+                      <td>{{ c.username }}</td>
+                      <td><span class="tag tag-xs" :class="c.auth_type==='password'?'tag-success':'tag-platform'">{{ c.auth_type==='password'?'密码':'私钥' }}</span></td>
+                    </tr>
+                  </tbody></table>
+                </div>
+                <div style="text-align:right">
+                  <button class="btn btn-primary btn-sm" @click="addBastionGroupCred" :disabled="bastionGroupCredNewIds.length === 0">授权({{ bastionGroupCredNewIds.length }})</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- 堡垒机连接弹窗（目录式下拉风格） -->
+      <div class="modal-overlay animated" :class="{ open: bastionConnectVisible }">
+        <div class="modal bastion-connect-modal" style="width:680px">  // style="width:740px;min-height:300px"
+          <div class="modal-header"><h2>SSH 连接</h2><button class="btn-close" @click="bastionConnectVisible = false">&times;</button></div>
+          <div class="modal-body">
+            <!-- 目标主机卡片 -->
+            <div class="bastion-host-card">
+              <div class="bastion-host-card-label">目标主机</div>
+              <div class="bastion-host-card-name">{{ bastionConnectAsset.name }}</div>
+            </div>
+            <!-- 网络类型 -->
+            <div class="form-group" style="margin-bottom:20px">
+              <label class="bastion-section-label">网络类型</label>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <label class="bastion-ip-card" :class="{ active: bastionConnectNetwork === 'public' }" v-if="bastionConnectAsset.public_ip">
+                  <input type="radio" v-model="bastionConnectNetwork" value="public" style="display:none" />
+                  <div class="bastion-ip-card-tag">公网</div>
+                  <div class="bastion-ip-card-addr">{{ bastionConnectAsset.public_ip }}</div>
+                </label>
+                <label class="bastion-ip-card" :class="{ active: bastionConnectNetwork === 'private' }" v-if="bastionConnectAsset.private_ip">
+                  <input type="radio" v-model="bastionConnectNetwork" value="private" style="display:none" />
+                  <div class="bastion-ip-card-tag">内网</div>
+                  <div class="bastion-ip-card-addr">{{ bastionConnectAsset.private_ip }}</div>
+                </label>
+                <label class="bastion-ip-card" :class="{ active: bastionConnectNetwork === 'eip' }" v-if="bastionConnectAsset.eip">
+                  <input type="radio" v-model="bastionConnectNetwork" value="eip" style="display:none" />
+                  <div class="bastion-ip-card-tag">弹性</div>
+                  <div class="bastion-ip-card-addr">{{ bastionConnectAsset.eip }}</div>
+                </label>
+              </div>
+            </div>
+            <!-- 账号凭证 — 目录式下拉 -->
+            <div class="form-group">
+              <label class="bastion-section-label">账号凭证</label>
+              <div class="bastion-cust-sel" :class="{ active: bastionConnectCredDrpOpen }">
+                <div class="bastion-cust-sel-trigger" @click.stop="bastionConnectCredDrpOpen=!bastionConnectCredDrpOpen;bastionNetDrpOpen=false;bastionCredDrpOpen=false">
+                  {{ selCredLabel(bastionConnectCredList, bastionConnectCredId) }}
+                  <span class="bastion-cust-sel-arrow">▼</span>
+                </div>
+                <div class="bastion-cust-sel-drop" :class="{ open: bastionConnectCredDrpOpen }" @wheel.stop>
+                  <div v-if="bastionConnectCredList.length===0" class="bastion-cust-sel-empty">暂无可用凭证，请先授权该资产给当前用户</div>
+                  <div class="bastion-cust-sel-item" v-for="c in bastionConnectCredList" :key="c.id" :class="{sel:bastionConnectCredId===c.id}" @click.stop="bastionConnectCredId=c.id;bastionConnectCredDrpOpen=false">🔑 {{ c.name }}({{ c.username }})</div>
+                </div>
+              </div>
+            </div>
+            <!-- 操作按钮 -->
+            <div class="bastion-connect-actions">
+              <button class="btn btn-default bastion-connect-btn" @click="bastionConnectVisible = false">取消</button>
+              <button class="btn btn-primary bastion-connect-btn" @click="doConnectBastion" :disabled="!bastionConnectCredId">连接</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ECS手动添加编辑弹窗 -->
+      <div class="modal-overlay" v-if="ecsManualModalVisible">
+        <div class="modal">
+          <div class="modal-header"><h2>{{ ecsManualEditing ? '编辑实例' : '手动添加实例' }}</h2><button class="btn-close" @click="ecsManualModalVisible = false">&times;</button></div>
+          <div class="modal-body">
+            <div class="form-vertical">
+              <div class="form-group"><label>实例名称 <span class="text-danger">*</span></label><input type="text" class="input input-full" v-model="ecsManualForm.instance_name" placeholder="如 Web服务器" /></div>
+              <div class="form-group"><label>公网IP</label><input type="text" class="input input-full" v-model="ecsManualForm.public_ip" placeholder="如 1.2.3.4" /></div>
+              <div class="form-group"><label>弹性IP</label><input type="text" class="input input-full" v-model="ecsManualForm.eip" placeholder="如 47.2.68.x（EIP 绑定地址）" /></div>
+              <div class="form-group"><label>内网IP</label><input type="text" class="input input-full" v-model="ecsManualForm.private_ip" placeholder="如 10.0.0.1" /></div>
+              <div class="form-group"><label>SSH 端口</label><input type="number" min="1" max="65535" class="input input-full" v-model.number="ecsManualForm.ssh_port" placeholder="默认 22，堡垒机连接使用" /></div>
+              <div class="form-row-2"><div class="form-group"><label>规格</label><input type="text" class="input input-full" v-model="ecsManualForm.instance_type" placeholder="如 ecs.g7.xlarge" /></div><div class="form-group"><label>平台</label><input type="text" class="input input-full" v-model="ecsManualForm.platform" placeholder="如 aliyun" /></div></div>
+              <div class="form-row-2"><div class="form-group"><label>CPU</label><input type="number" class="input input-full" v-model.number="ecsManualForm.cpu" placeholder="核数" /></div><div class="form-group"><label>内存(GB)</label><input type="number" class="input input-full" v-model.number="ecsManualForm.memory" placeholder="GB" /></div></div>
+              <div class="form-group"><label>操作系统</label><input type="text" class="input input-full" v-model="ecsManualForm.os_name" placeholder="如 CentOS 7.9" /></div>
+              <div class="form-row-2"><div class="form-group"><label>地域</label><input type="text" class="input input-full" v-model="ecsManualForm.region_name" placeholder="如 上海" /></div><div class="form-group"><label>可用区</label><input type="text" class="input input-full" v-model="ecsManualForm.zone_name" placeholder="如 上海可用区B" /></div></div>
+              <div class="form-group"><label>账号</label><input type="text" class="input input-full" v-model="ecsManualForm.account_name" placeholder="账号名" /></div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+              <button class="btn btn-default" @click="ecsManualModalVisible = false">取消</button>
+              <button class="btn btn-primary" @click="saveEcsManual" :disabled="ecsManualSaving">{{ ecsManualSaving ? '保存中...' : '保存' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 域名（注册列表）手动添加编辑弹窗 -->
+      <div class="modal-overlay" v-if="domainManualModalVisible">
+        <div class="modal">
+          <div class="modal-header"><h2>{{ domainManualEditing ? '编辑域名' : '手动添加域名' }}</h2><button class="btn-close" @click="domainManualModalVisible = false">&times;</button></div>
+          <div class="modal-body">
+            <div class="form-vertical">
+              <div class="form-group"><label>域名 <span class="text-danger">*</span></label><input type="text" class="input input-full" v-model="domainManualForm.domain_name" placeholder="如 example.com" :disabled="domainManualEditing" /></div>
+              <div class="form-row-2"><div class="form-group"><label>平台</label><input type="text" class="input input-full" v-model="domainManualForm.platform" placeholder="如 aliyun / other" /></div><div class="form-group"><label>账号名</label><input type="text" class="input input-full" v-model="domainManualForm.account_name" placeholder="如 其它平台/手动录入" /></div></div>
+              <div class="form-group"><label>所有者</label><input type="text" class="input input-full" v-model="domainManualForm.owner" placeholder="域名所有者" /></div>
+              <div class="form-row-2"><div class="form-group"><label>注册日期</label><input type="date" class="input input-full" v-model="domainManualForm.registration_date" /></div><div class="form-group"><label>到期日期</label><input type="date" class="input input-full" v-model="domainManualForm.expiration_date" /></div></div>
+              <div class="form-group"><label class="checkbox-inline"><input type="checkbox" v-model="domainManualForm.auto_renew_enabled" /> 自动续费已开启</label></div>
+              <div class="form-group"><label>备注</label><input type="text" class="input input-full" v-model="domainManualForm.remark" placeholder="备注信息" /></div>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+              <button class="btn btn-default" @click="domainManualModalVisible = false">取消</button>
+              <button class="btn btn-primary" @click="saveDomainManual" :disabled="domainManualSaving">{{ domainManualSaving ? '保存中...' : '保存' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 堡垒机凭证编辑弹窗 -->
+      <div class="modal-overlay" v-if="bastionCredModalVisible">
+        <div class="modal">
+          <div class="modal-header"><h2>{{ bastionCredEditing ? '编辑凭证' : '新增凭证' }}</h2><button class="btn-close" @click="bastionCredModalVisible = false">&times;</button></div>
+          <div class="modal-body">
+            <div class="form-vertical">
+              <div class="form-group"><label>凭证名称 <span class="text-danger">*</span></label><input type="text" class="input input-full" v-model="bastionCredForm.name" placeholder="如 生产环境root" /></div>
+              <div class="form-group"><label>用户名 <span class="text-danger">*</span></label><input type="text" class="input input-full" v-model="bastionCredForm.username" placeholder="如 root" /></div>
+              <div class="form-group"><label>认证方式</label><select class="select" style="width:100%" v-model="bastionCredForm.auth_type"><option value="password">密码</option><option value="private_key">私钥</option></select></div>
+              <div class="form-group" v-if="bastionCredForm.auth_type === 'password'">
+                <label>密码 <span v-if="!bastionCredEditing" class="text-danger">*</span><span v-else class="text-gray" style="font-weight:400">（留空不修改）</span></label>
+                <input type="password" class="input input-full" v-model="bastionCredForm.password" placeholder="SSH密码" />
+              </div>
+              <template v-if="bastionCredForm.auth_type === 'private_key'">
+                <div class="form-group"><label>私钥 <span v-if="!bastionCredEditing" class="text-danger">*</span><span v-else class="text-gray" style="font-weight:400">（留空不修改）</span></label><textarea class="input input-full" v-model="bastionCredForm.private_key" placeholder="SSH私钥" rows="5" style="resize:vertical;font-family:monospace;font-size:12px;"></textarea></div>
+                <div class="form-group"><label>私钥密码（可选）</label><input type="password" class="input input-full" v-model="bastionCredForm.passphrase" placeholder="私钥密码" /></div>
+              </template>
+            </div>
+            <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:24px">
+              <button class="btn btn-default" @click="bastionCredModalVisible = false">取消</button>
+              <button class="btn btn-primary" @click="saveBastionCred" :disabled="bastionCredSaving">{{ bastionCredSaving ? '保存中...' : '保存' }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </template>
+
+    <div class="toast" :class="{ show: toast.show, 'toast-success': toast.type === 'success', 'toast-error': toast.type === 'error' }">{{ toast.msg }}</div>
+
+    <!-- 同步进度日志面板 -->
+  <div v-if="bastionNetDrpOpen||bastionCredDrpOpen||bastionConnectCredDrpOpen" class="drp-backdrop" @click="bastionNetDrpOpen=false;bastionCredDrpOpen=false;bastionConnectCredDrpOpen=false" @wheel.prevent></div>
+  </div>
+
+  <script src="/assets/js/app.js?v=20261109b"></script>
+</body>
+</html>
