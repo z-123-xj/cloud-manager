@@ -96,16 +96,25 @@ func resolveSSHSpec(uid int, role string, ecsID int, network string, credID int)
 	}
 
 	if credID == 0 {
-		var groupIDs []uint
-		models.DB.Model(&models.UserGroupMember{}).Where("user_id = ?", uid).Pluck("group_id", &groupIDs)
-		if len(groupIDs) > 0 {
-			var gc models.BastionGroupCredential
-			models.DB.Where("group_id IN ?", groupIDs).Order("id ASC").First(&gc)
-			credID = int(gc.CredentialID)
+		if role == "admin" {
+			// 管理员可用全部凭证且不依赖用户组，取凭证下拉的第一条（id DESC）作为默认
+			var first models.ServerCredential
+			if err := models.DB.Select("id").Order("id DESC").First(&first).Error; err == nil {
+				credID = int(first.ID)
+			}
+		} else {
+			// 普通用户：取所在用户组已授权的第一条凭证
+			var groupIDs []uint
+			models.DB.Model(&models.UserGroupMember{}).Where("user_id = ?", uid).Pluck("group_id", &groupIDs)
+			if len(groupIDs) > 0 {
+				var gc models.BastionGroupCredential
+				models.DB.Where("group_id IN ?", groupIDs).Order("id ASC").First(&gc)
+				credID = int(gc.CredentialID)
+			}
 		}
 	}
 	if credID == 0 {
-		return nil, newSSHSpecError(http.StatusBadRequest, "未找到可用的凭证")
+		return nil, newSSHSpecError(http.StatusBadRequest, "未找到可用的凭证，请先在用户组管理中授权凭证")
 	}
 	var cred models.ServerCredential
 	if err := models.DB.First(&cred, credID).Error; err != nil {

@@ -124,13 +124,21 @@ func SSHTerminal(c *gin.Context) {
 	credIDStr := c.DefaultQuery("credential_id", "0")
 	credID, _ := strconv.Atoi(credIDStr)
 	if credID == 0 {
-		// 从用户组的凭证授权中获取凭证
-		var groupIDs []uint
-		models.DB.Model(&models.UserGroupMember{}).Where("user_id = ?", uid).Pluck("group_id", &groupIDs)
-		if len(groupIDs) > 0 {
-			var gc models.BastionGroupCredential
-			models.DB.Where("group_id IN ?", groupIDs).Order("id ASC").First(&gc)
-			credID = int(gc.CredentialID)
+		if role == "admin" {
+			// 管理员可用全部凭证且不依赖用户组，取凭证下拉的第一条（id DESC）作为默认
+			var first models.ServerCredential
+			if err := models.DB.Select("id").Order("id DESC").First(&first).Error; err == nil {
+				credID = int(first.ID)
+			}
+		} else {
+			// 普通用户：取所在用户组已授权的第一条凭证
+			var groupIDs []uint
+			models.DB.Model(&models.UserGroupMember{}).Where("user_id = ?", uid).Pluck("group_id", &groupIDs)
+			if len(groupIDs) > 0 {
+				var gc models.BastionGroupCredential
+				models.DB.Where("group_id IN ?", groupIDs).Order("id ASC").First(&gc)
+				credID = int(gc.CredentialID)
+			}
 		}
 	}
 	if credID == 0 {
@@ -144,6 +152,21 @@ func SSHTerminal(c *gin.Context) {
 	if err := models.DB.First(&cred, credID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "凭证不存在"})
 		return
+	}
+
+	// 普通用户只能使用所在用户组已授权的凭证，避免通过 URL 传入任意凭证 ID 越权
+	if role != "admin" {
+		var groupIDs []uint
+		models.DB.Model(&models.UserGroupMember{}).Where("user_id = ?", uid).Pluck("group_id", &groupIDs)
+		var count int64
+		if len(groupIDs) > 0 {
+			models.DB.Model(&models.BastionGroupCredential{}).
+				Where("credential_id = ? AND group_id IN ?", credID, groupIDs).Count(&count)
+		}
+		if count == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "无权使用该凭证"})
+			return
+		}
 	}
 
 	// 解密凭证

@@ -7,7 +7,7 @@
   <title>云管平台</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
   <script src="/assets/js/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261109n" />
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261110b" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5/css/xterm.css" />
   <script src="https://cdn.jsdelivr.net/npm/xterm@5/lib/xterm.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8/lib/xterm-addon-fit.js"></script>
@@ -184,7 +184,6 @@
                     <span class="arrow" :class="{ open: sidebarBastionOpen }">▶</span>
                   </a>
                   <ul class="submenu" v-show="sidebarBastionOpen">
-                    <li><a class="submenu-link" :class="{ active: currentTab === 'bastionAssets' }" :href="'/assets/pages/bastion.html'" @click.prevent="goTab('/assets/pages/bastion.html')" title="资产"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></span>资产</a></li>
                     <li><a class="submenu-link" :class="{ active: currentTab === 'bastionGroups' }" :href="'/bastion/groups'" @click="navigate($event, '/bastion/groups')" v-if="isAdmin" title="用户组"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></span>用户组</a></li>
                     <li><a class="submenu-link" :class="{ active: currentTab === 'bastionCredentials' }" :href="'/bastion/credentials'" @click="navigate($event, '/bastion/credentials')" v-if="isAdmin" title="凭证"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></span>凭证</a></li>
                     <li><a class="submenu-link" :href="'/assets/pages/batch-exec.html'" @click.prevent="goTab('/assets/pages/batch-exec.html')" title="批量执行"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>批量执行</a></li>
@@ -1469,7 +1468,7 @@
                   <div class="cust-sel" style="min-width:120px"><div class="cust-sel-trigger" @click.stop="bastionCredDrpOpen=!bastionCredDrpOpen;bastionNetDrpOpen=false;bastionConnectCredDrpOpen=false" style="min-width:100px;max-width:180px;overflow:hidden;text-overflow:ellipsis">{{ selCredLabel(bastionTerminalCredList, bastionTerminalCredId) }} <span class="cust-sel-arrow">▼</span></div><div class="cust-sel-drop" :class="{ open: bastionCredDrpOpen }" @wheel.stop style="min-width:180px"><div class="cust-sel-item" v-for="c in bastionTerminalCredList" :key="c.id" :class="{sel:bastionTerminalCredId===c.id}" @click.stop="bastionTerminalCredId=c.id;bastionCredDrpOpen=false;reconnectBastion()">🔑 {{ c.name }}({{ c.username }})</div></div></div>
                   <button class="btn btn-sm" @click="toggleBastionFiles" title="文件管理" style="background:#444;color:#ccc;border-color:#555; white-space:nowrap;">{{ bastionFileVisible ? '📂' : '📁' }}</button>
                   <button class="btn btn-default btn-sm" @click="bastionToggleConnection" :style="{ background: bastionTerminalStatus.includes('断开') ? '#1a73e8' : '#444', color:'#ccc', borderColor:'#555', whiteSpace:'nowrap' }">{{ bastionTerminalStatus.includes('断开') ? '重连' : '断开' }}</button>
-                  <button class="btn btn-sm" @click="goTab('/assets/pages/bastion.html')" title="主机" style="background:#333;color:#ccc;border-color:#555;font-size:15px;padding:2px 7px;">🖥</button>
+                  <button class="btn btn-sm" @click="goTab('/assets/pages/ecs.html')" title="主机" style="background:#333;color:#ccc;border-color:#555;font-size:15px;padding:2px 7px;">🖥</button>
                 </div>
               </div>
               <!-- 终端 + 文件抽屉 -->
@@ -2285,6 +2284,6 @@
   <div v-if="bastionNetDrpOpen||bastionCredDrpOpen||bastionConnectCredDrpOpen" class="drp-backdrop" @click="bastionNetDrpOpen=false;bastionCredDrpOpen=false;bastionConnectCredDrpOpen=false" @wheel.prevent></div>
   </div>
 
-  <script src="/assets/js/app.js?v=20261109b"></script>
+  <script src="/assets/js/app.js?v=20261111a"></script>
 </body>
 </html>

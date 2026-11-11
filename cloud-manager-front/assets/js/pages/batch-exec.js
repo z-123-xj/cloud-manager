@@ -40,6 +40,7 @@
       });
 
       const submitting = ref(false);
+      const lastError = ref('');
       const confirmVisible = ref(false);
       const detailVisible = ref(false);
       const detailResult = ref({});
@@ -105,19 +106,22 @@
         return n < 1000 ? n + ' ms' : (n / 1000).toFixed(2) + ' s';
       }
 
-      // 统一响应处理：{code,msg,data}，code===0 成功；quiet 用于轮询时静默失败
+      // 统一响应处理：{code,msg,data}，code===0 成功；quiet 用于轮询时静默失败。
+      // 失败文案同时写入 lastError，确认弹窗内也能看到，不会被弹窗遮住。
       async function api(url, opts, quiet) {
         try {
           const res = await authFetch(url, opts);
           const json = await res.json();
           if (json.code === 401) { logout(); return null; }
           if (json.code !== 0) {
-            if (!quiet) showToast(json.msg || '请求失败', 'error');
+            const msg = json.msg || '请求失败';
+            if (!quiet) { lastError.value = msg; showToast(msg, 'error'); }
             return null;
           }
+          if (!quiet) lastError.value = '';
           return json.data;
         } catch (e) {
-          if (!quiet) showToast('网络请求失败', 'error');
+          if (!quiet) { lastError.value = '网络请求失败'; showToast('网络请求失败', 'error'); }
           return null;
         }
       }
@@ -194,6 +198,16 @@
 
       function confirmRun() {
         if (selectedIds.value.length === 0) { showToast('请先选择目标主机', 'error'); return; }
+        // 凭证前置校验：没选、无可用凭证、或所选凭证已失效时先提示，不提交到后端再报错
+        if (credentials.value.length === 0) {
+          showToast('当前账号没有可用的 SSH 凭证，请先联系管理员在用户组管理中授权', 'error'); return;
+        }
+        const pickedCredId = Number(form.credential_id) || 0;
+        if (!pickedCredId) { showToast('请先选择 SSH 凭证', 'error'); return; }
+        if (!credentials.value.some(c => Number(c.id) === pickedCredId)) {
+          form.credential_id = 0;
+          showToast('所选凭证已不可用，请重新选择 SSH 凭证', 'error'); return;
+        }
         if (!form.script.trim()) { showToast('请填写命令或脚本', 'error'); return; }
         if (selectedIds.value.length > Number(options.value.max_assets)) {
           showToast('单次最多选择 ' + options.value.max_assets + ' 台', 'error'); return;
@@ -207,11 +221,18 @@
         if (Number(form.timeout_sec) < 1 || Number(form.timeout_sec) > Number(options.value.max_timeout_sec)) {
           showToast('超时需在 1 - ' + options.value.max_timeout_sec + ' 秒之间', 'error'); return;
         }
+        lastError.value = '';
         confirmVisible.value = true;
       }
 
       async function doRun() {
         if (submitting.value) return;
+        if (!Number(form.credential_id)) {
+          lastError.value = '请先选择 SSH 凭证';
+          showToast('请先选择 SSH 凭证', 'error');
+          return;
+        }
+        lastError.value = '';
         submitting.value = true;
         const payload = {
           title: form.title.trim(),
@@ -248,6 +269,56 @@
       function openHistory(t) {
         loadTask(t.id);
         window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function clampNum(v, min, max, fallback) {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < 1) return fallback;
+        return Math.max(min, Math.min(max, Math.round(n)));
+      }
+
+      // 把历史任务的配置和主机恢复回表单，方便直接重跑；只填表单，不自动提交
+      async function applyHistory(t) {
+        await Promise.all([fetchAssets(), fetchCredentials()]);
+        const data = await api('/api/bastion/batch/tasks/' + t.id);
+        if (!data || !data.task) return;
+        const task = data.task;
+        const results = Array.isArray(data.results) ? data.results : [];
+
+        // 历史里的主机可能已下线或不再授权给当前用户，只保留当前可用资产
+        const valid = new Set(assets.value.map(a => Number(a.id)));
+        const wanted = Array.from(new Set(results.map(r => Number(r.ecs_id)).filter(id => id > 0)));
+        const picked = wanted.filter(id => valid.has(id));
+        const skipped = wanted.length - picked.length;
+
+        const notes = [];
+        const credId = Number(task.credential_id) || 0;
+        let credentialId = 0;
+        if (credId && credentials.value.some(c => Number(c.id) === credId)) {
+          credentialId = credId;
+        } else if (credId) {
+          notes.push('原凭证已不可用，请重新选择');
+        }
+        if (skipped > 0) notes.push(skipped + ' 台主机已不在可用资产中，已跳过');
+
+        form.title = task.title || '';
+        form.script = task.script || '';
+        form.shell = (options.value.shells || []).indexOf(task.shell) >= 0 ? task.shell : 'sh';
+        form.network = ['public', 'eip', 'private'].indexOf(task.network) >= 0 ? task.network : 'public';
+        form.credential_id = credentialId;
+        form.concurrency = clampNum(task.concurrency, 1, Number(options.value.max_concurrency) || 20, 5);
+        form.timeout_sec = clampNum(task.timeout_sec, 1, Number(options.value.max_timeout_sec) || 3600, 300);
+        selectedIds.value = picked;
+        assetKeyword.value = '';
+        accountFilter.value = '';
+        lastError.value = '';
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        const msg = picked.length === 0
+          ? '已应用 #' + t.id + ' 的配置，但原主机均不可用，请重新选择主机'
+          : '已应用 #' + t.id + ' 的配置，选中 ' + picked.length + ' 台主机' +
+            (notes.length ? '（' + notes.join('；') + '）' : '');
+        showToast(msg, picked.length === 0 ? 'error' : 'success');
       }
 
       function openResult(r) {
@@ -291,10 +362,10 @@
         selectedIds, filteredAssets, hostsOpen,
         isSelected, toggleHost, clearSelection, selectAllFiltered,
         credentials, options, form, displayIp, fetchAssets,
-        submitting, confirmVisible, confirmRun, doRun, cancelTask,
+        submitting, lastError, confirmVisible, confirmRun, doRun, cancelTask,
         activeTask, results, progressPct,
         history, historyLoading, historyTotal, historyPage, historyTotalPages,
-        loadHistory, goHistoryPage, openHistory,
+        loadHistory, goHistoryPage, openHistory, applyHistory,
         detailVisible, detailResult, openResult, copyOutput,
         statusLabel, statusTone, formatDuration, formatDateTime,
       };

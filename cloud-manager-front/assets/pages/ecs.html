@@ -7,11 +7,37 @@
   <title>ECS实例 - 云管平台</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
   <script src="/assets/js/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261109n" />
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261110b" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    /* SSH 连接弹窗：内容对齐 terminal.html 的连接弹窗，外观沿用堡垒机亮色卡片 */
+    .bastion-connect-modal .conn-subline {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: #64748b;
+      padding: 10px 15px; margin-bottom: 20px;
+      background: rgba(59, 130, 246, .06);
+      border-left: 3px solid #3b82f6;
+      border-radius: 0 8px 8px 0;
+    }
+    .bastion-connect-modal .conn-subline .sub-badge {
+      display: inline-block; background: rgba(59, 130, 246, .15); color: #1d4ed8;
+      font-size: 12px; font-weight: 500; padding: 2px 12px; border-radius: 20px;
+    }
+    .bastion-connect-modal .bastion-ip-card input[type=radio] {
+      -webkit-appearance: none; appearance: none;
+      width: 18px; height: 18px; margin: 0; flex-shrink: 0;
+      border: 2px solid #cbd5e1; border-radius: 50%; background: #fff; cursor: pointer;
+    }
+    .bastion-connect-modal .bastion-ip-card input[type=radio]:checked {
+      border-color: #2563eb; background: radial-gradient(circle, #2563eb 0 45%, transparent 46%);
+    }
+    .bastion-connect-modal .bastion-ip-card.active input[type=radio] { border-color: #2563eb; }
+    .bastion-connect-modal .conn-port { color: #94a3b8; }
+    .ecs-table td .ecs-connect-btn { margin-right: 6px; }
+  </style>
 </head>
 <body>
   <div id="app"></div>
@@ -58,33 +84,40 @@
                 <option v-for="r in regions" :key="r" :value="r">{{ r }}</option>
               </select>
               <button class="btn btn-default" @click="resetFilters">重置</button>
+              <div class="col-picker-wrap">
+                <button class="btn btn-default btn-sm col-picker-btn" @click.stop="toggleColPicker($event)" title="列设置"><i class="fas fa-gear"></i></button>
+              </div>
+              <!-- .srv-card 有 overflow:hidden + backdrop-filter，面板传送到 body 才能完整显示、点空白可关闭 -->
+              <Teleport to="body">
+                <div v-if="colPickerOpen" class="col-picker-mask" @click="colPickerOpen = false"></div>
+                <div v-if="colPickerOpen" class="col-picker-panel" :style="colPickerPos" @click.stop>
+                  <div class="col-picker-head">显示列（拖动表头分隔线可调宽度）</div>
+                  <label v-for="c in ecsColumns" :key="c.key" class="col-picker-item" :class="{ 'is-fixed': c.fixed }">
+                    <input type="checkbox" :checked="isColVisible(c.key)" :disabled="c.fixed" @change="toggleCol(c)" />
+                    <span>{{ c.label }}</span>
+                  </label>
+                  <div class="col-picker-foot">
+                    <button class="btn btn-text btn-sm" @click="showAllCols">全选</button>
+                    <button class="btn btn-text btn-sm" @click="resetColPrefs">恢复默认</button>
+                  </div>
+                </div>
+              </Teleport>
             </div>
           </div>
 
           <div class="table-wrapper">
-            <table class="table table-fixed ecs-table">
+            <table class="table table-fixed ecs-table" :style="tableCssVars" :class="hiddenColClasses">
               <thead>
                 <tr>
-                  <th>实例ID/名称</th>
-                  <th>平台</th>
-                  <th>账号</th>
-                  <th>状态</th>
-                  <th>规格</th>
-                  <th>CPU</th>
-                  <th>内存(GB)</th>
-                  <th>操作系统</th>
-                  <th>IP地址</th>
-                  <th>SSH端口</th>
-                  <th>地域</th>
-                  <th>可用区</th>
-                  <th>创建时间</th>
-                  <th>来源</th>
-                  <th>操作</th>
+                  <th v-for="c in ecsColumns" :key="c.key">
+                    {{ c.label }}
+                    <span class="ecs-col-resize-handle" @mousedown.stop.prevent="startResize($event, c.key)"></span>
+                  </th>
                   </tr>
                   </thead>
                   <tbody>
-                  <tr v-if="loading"><td colspan="15" class="text-center py-40">加载中...</td></tr>
-                  <tr v-else-if="list.length === 0"><td colspan="15" class="text-center py-40 text-gray">暂无数据</td></tr>
+                  <tr v-if="loading"><td :colspan="visibleColCount" class="text-center py-40">加载中...</td></tr>
+                  <tr v-else-if="list.length === 0"><td :colspan="visibleColCount" class="text-center py-40 text-gray">暂无数据</td></tr>
                 <tr v-for="item in list" :key="item.instance_id">
                   <td>
                     <div v-if="ecsInlineEdit.id === item.id && ecsInlineEdit.field === 'name'">
@@ -123,6 +156,7 @@
                   <td class="text-sm">{{ formatDate(item.creation_time) }}</td>
                   <td><span :class="item.source === 'manual' ? 'tag tag-success' : 'tag tag-platform'">{{ item.source === 'manual' ? '手动' : '同步' }}</span></td>
                   <td>
+                    <button class="btn btn-text btn-sm ecs-connect-btn" v-if="item.can_connect" @click="connect(item)" title="SSH 连接">连接</button>
                     <button class="btn btn-text btn-sm" v-if="isAdmin && item.source === 'manual'" @click="openEcsManualModal(item)">编辑</button>
                   </td>
                 </tr>
@@ -181,10 +215,65 @@
         </div>
       </div>
     </div>
+
+    <!-- SSH 连接弹窗：仅对当前用户被授权的资产开放，确认后新标签打开终端页 -->
+    <div class="modal-overlay animated" :class="{ open: connectVisible }" @click.self="closeConnect">
+      <div class="modal bastion-connect-modal" style="width:680px">
+        <div class="modal-header">
+          <h2>SSH 连接</h2>
+          <button class="btn-close" @click="closeConnect">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="conn-subline">
+            选择网络类型和凭证后连接 <span class="sub-badge">{{ connectAsset.name }}</span>
+          </div>
+          <div class="bastion-host-card">
+            <div class="bastion-host-card-label">目标主机</div>
+            <div class="bastion-host-card-name">{{ connectAsset.name }}</div>
+          </div>
+          <div class="form-group" style="margin-bottom:20px">
+            <label class="bastion-section-label">网络类型</label>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <label class="bastion-ip-card" :class="{ active: connectNetwork === 'public' }" v-if="connectAsset.public_ip">
+                <input type="radio" v-model="connectNetwork" value="public" />
+                <div class="bastion-ip-card-tag">公网</div>
+                <div class="bastion-ip-card-addr">{{ connectAsset.public_ip }}<span class="conn-port">:{{ connectAsset.port || 22 }}</span></div>
+              </label>
+              <label class="bastion-ip-card" :class="{ active: connectNetwork === 'private' }" v-if="connectAsset.private_ip">
+                <input type="radio" v-model="connectNetwork" value="private" />
+                <div class="bastion-ip-card-tag">内网</div>
+                <div class="bastion-ip-card-addr">{{ connectAsset.private_ip }}<span class="conn-port">:{{ connectAsset.port || 22 }}</span></div>
+              </label>
+              <div v-if="!connectAsset.public_ip && !connectAsset.private_ip" class="bastion-cust-sel-empty">该资产没有可用 IP</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="bastion-section-label">账号凭证</label>
+            <div class="bastion-cust-sel" :class="{ active: connectCredDrpOpen }">
+              <div class="bastion-cust-sel-trigger" @click.stop="connectCredDrpOpen = !connectCredDrpOpen">
+                {{ credLabel() }}
+                <span class="bastion-cust-sel-arrow">▼</span>
+              </div>
+              <div class="bastion-cust-sel-drop" :class="{ open: connectCredDrpOpen }" @wheel.stop>
+                <div v-if="!connectCredList.length" class="bastion-cust-sel-empty">暂无可用凭证，请先授权该资产给当前用户</div>
+                <div class="bastion-cust-sel-item" v-for="c in connectCredList" :key="c.id"
+                     :class="{ sel: connectCredId === c.id }"
+                     @click.stop="connectCredId = c.id; connectCredDrpOpen = false">🔑 {{ c.name }}({{ c.username }})</div>
+              </div>
+            </div>
+          </div>
+          <div class="bastion-connect-actions">
+            <button class="btn btn-default bastion-connect-btn" @click="closeConnect">取消</button>
+            <button class="btn btn-primary bastion-connect-btn" @click="doConnect"
+                    :disabled="!connectCredId || connectLoading">{{ connectLoading ? '加载中...' : '连接' }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </script>
 
-  <script src="/assets/js/core.js?v=20261109f"></script>
+  <script src="/assets/js/core.js?v=20261111a"></script>
   <script src="/assets/js/shared-sync.js?v=20261109l"></script>
-  <script src="/assets/js/pages/ecs.js?v=20261109m"></script>
+  <script src="/assets/js/pages/ecs.js?v=20261111a"></script>
 </body>
 </html>

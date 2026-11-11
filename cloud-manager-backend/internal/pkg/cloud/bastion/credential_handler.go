@@ -13,13 +13,37 @@ import (
 // ==================== 凭证CRUD ====================
 
 // ListCredentials GET /api/bastion/credentials
+// 管理员返回全部凭证；普通用户只返回所在用户组已授权的凭证，
+// 与 /assets/:id/credentials 口径一致，避免下拉里出现提交时必然 403 的选项。
 func ListCredentials(c *gin.Context) {
+	uid, role := batchIdentity(c)
+
 	var list []models.ServerCredential
-	models.DB.Order("id DESC").Find(&list)
+	query := models.DB.Order("id DESC")
+	if role != "admin" {
+		var groupIDs []uint
+		models.DB.Model(&models.UserGroupMember{}).Where("user_id = ?", uid).Pluck("group_id", &groupIDs)
+		if len(groupIDs) == 0 {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": []models.ServerCredential{}})
+			return
+		}
+		var credIDs []uint
+		models.DB.Model(&models.BastionGroupCredential{}).
+			Where("group_id IN ?", groupIDs).Distinct("credential_id").Pluck("credential_id", &credIDs)
+		if len(credIDs) == 0 {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "data": []models.ServerCredential{}})
+			return
+		}
+		query = query.Where("id IN ?", credIDs)
+	}
+	query.Find(&list)
 	for i := range list {
 		list[i].Password = ""
 		list[i].PrivateKey = ""
 		list[i].Passphrase = ""
+	}
+	if list == nil {
+		list = []models.ServerCredential{}
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "data": list})
 }

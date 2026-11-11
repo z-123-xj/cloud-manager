@@ -380,7 +380,6 @@ const app = createApp({
       { name: '域名管理', path: '/assets/pages/domains.html' },
       { name: '云服务器 ECS', path: '/assets/pages/ecs.html' },
       { name: 'DNS解析', path: '/assets/pages/dns.html' },
-      { name: '堡垒机资产', path: '/assets/pages/bastion.html' },
       { name: '日志排查', path: LOG_PAGE },
     ];
     // 收藏与最近访问不放同一入口，避免抽屉里同一个页面出现两遍
@@ -459,7 +458,6 @@ const app = createApp({
         { label: '实例地域开通', path: '/assets/pages/regions.html', count: '地域管理' },
       ] },
       { key: 'security', title: '安全运维', icon: 'fas fa-shield-alt', items: [
-        { label: '堡垒机资产', path: '/assets/pages/bastion.html', count: '资产管理' },
         { label: '凭证管理', path: '/bastion/credentials', count: 'SSH 凭证' },
         { label: '用户组管理', path: '/bastion/groups', count: '账号管理 / 授权' },
         { label: '批量执行', path: '/assets/pages/batch-exec.html', count: '命令/脚本下发' },
@@ -3758,8 +3756,8 @@ const app = createApp({
       clearInterval(bastionHeartbeat);
       if (bastionWs) { bastionWs.close(); bastionWs = null; }
       if (bastionXterm) { bastionXterm.dispose(); bastionXterm = null; }
-      // 资产列表已是独立页，断开后整页返回
-      window.location.href = '/assets/pages/bastion.html';
+      // 资产列表已合并到 ECS 实例页，断开后整页返回
+      window.location.href = '/assets/pages/ecs.html';
     }
 
     function bastionToggleConnection() {

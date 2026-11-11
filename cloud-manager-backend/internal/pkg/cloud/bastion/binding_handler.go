@@ -274,6 +274,31 @@ func GetAssetCredentials(c *gin.Context) {
 	uid, _ := strconv.Atoi(uidStr.(string))
 	role, _ := c.Get("role")
 
+	var groupIDs []uint
+	if role != "admin" {
+		models.DB.Model(&models.UserGroupMember{}).Where("user_id = ?", uid).Pluck("group_id", &groupIDs)
+	}
+
+	// :id 必须是一个真实存在、且当前用户有权连接的资产，否则不对任意资产枚举凭证。
+	// 判权口径与 SSHTerminal / GET /api/ecs 的 can_connect 保持一致。
+	ecsID, _ := strconv.Atoi(c.Param("id"))
+	var ecs models.EcsInstance
+	if ecsID <= 0 || models.DB.First(&ecs, ecsID).Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "实例不存在"})
+		return
+	}
+	if role != "admin" {
+		var count int64
+		if len(groupIDs) > 0 {
+			models.DB.Model(&models.BastionGroupAsset{}).
+				Where("ecs_id = ? AND group_id IN ?", ecsID, groupIDs).Count(&count)
+		}
+		if count == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "无权访问该资产"})
+			return
+		}
+	}
+
 	var credentialIDs []uint
 
 	if role == "admin" {
@@ -281,8 +306,6 @@ func GetAssetCredentials(c *gin.Context) {
 		models.DB.Model(&models.ServerCredential{}).Order("id ASC").Pluck("id", &credentialIDs)
 	} else {
 		// 普通用户：通过用户组查授权凭证
-		var groupIDs []uint
-		models.DB.Model(&models.UserGroupMember{}).Where("user_id = ?", uid).Pluck("group_id", &groupIDs)
 		if len(groupIDs) == 0 {
 			c.JSON(http.StatusOK, gin.H{"code": 0, "data": []interface{}{}})
 			return

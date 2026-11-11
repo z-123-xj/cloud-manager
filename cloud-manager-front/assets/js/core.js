@@ -35,7 +35,7 @@
     ecs: '/assets/pages/ecs.html',
     regions: '/assets/pages/regions.html',
     resourcePackages: '/assets/pages/resource-packages.html',
-    bastionAssets: '/assets/pages/bastion.html',
+    bastionAssets: '/assets/pages/ecs.html', // 堡垒机资产页已合并进 ECS 实例页
     batchExec: '/assets/pages/batch-exec.html',
     bastionGroups: '/bastion/groups',
     bastionCredentials: '/bastion/credentials',
@@ -61,7 +61,6 @@
       { label: '实例地域开通', path: ROUTES.regions, count: '地域管理' },
     ] },
     { key: 'security', title: '安全运维', icon: 'fas fa-shield-alt', items: [
-      { label: '堡垒机资产', path: ROUTES.bastionAssets, count: '资产管理' },
       { label: '凭证管理', path: ROUTES.bastionCredentials, count: 'SSH 凭证' },
       { label: '用户组管理', path: ROUTES.bastionGroups, count: '账号管理 / 授权' },
       { label: '批量执行', path: ROUTES.batchExec, count: '命令/脚本下发' },
@@ -79,7 +78,6 @@
     { name: '域名管理', path: ROUTES.domains },
     { name: '云服务器 ECS', path: ROUTES.ecs },
     { name: 'DNS解析', path: ROUTES.dnsDomains },
-    { name: '堡垒机资产', path: ROUTES.bastionAssets },
     { name: '日志排查', path: ROUTES.logs },
   ];
   const FAVORITES = [

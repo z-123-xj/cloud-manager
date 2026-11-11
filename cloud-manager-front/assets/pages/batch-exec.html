@@ -7,7 +7,7 @@
   <title>批量执行 - 云管平台</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☁️</text></svg>" />
   <script src="/assets/js/vue.global.prod.js"></script>
-  <link rel="stylesheet" href="/assets/css/style.css?v=20261109n" />
+  <link rel="stylesheet" href="/assets/css/style.css?v=20261110b" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
@@ -177,9 +177,15 @@
     .bx-hist-title { font-weight: 600; font-size: .87rem; color: #1e2d42; }
     .bx-hist-meta { font-size: .76rem; color: #7a8fa3; margin-left: auto; }
     .bx-hist-go { font-size: .76rem; color: #2d6a9f; }
+    .bx-hist-apply { padding: 4px 10px; border: 1px solid rgba(45,106,159,.35); border-radius: 8px; background: rgba(45,106,159,.08); color: #2d6a9f; font-size: .76rem; font-weight: 600; font-family: inherit; cursor: pointer; white-space: nowrap; }
+    .bx-hist-apply:hover { background: rgba(45,106,159,.18); }
     .bx-pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 1rem; font-size: .8rem; color: #7a8fa3; }
 
     /* ---- 弹窗（脱离全局 .modal） ---- */
+    /* 弹窗 z-index 9999 高于全局 toast(1300)，提交失败时错误提示会被压在弹窗下面：
+       这里把 toast 提到最上层，同时弹窗内再单独显示一次错误（.bx-error）。 */
+    .toast { z-index: 10000 !important; }
+    .bx-error { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: #fff1f0; border: 1px solid #ffccc7; color: #c0272d; font-size: .82rem; line-height: 1.5; }
     .bx-overlay { position: fixed; inset: 0; background: rgba(15,35,55,.45); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 9999; padding: 1rem; }
     .bx-modal { width: 100%; max-width: 560px; max-height: 86vh; overflow: auto; background: #fff; border-radius: 24px; box-shadow: 0 30px 70px -20px rgba(0,0,0,.35); }
     .bx-modal.wide { max-width: 860px; }
@@ -256,7 +262,7 @@
               <div class="bx-field bx-col-4">
                 <label><i class="fas fa-key"></i> SSH 凭证</label>
                 <select class="bx-control" v-model.number="form.credential_id">
-                  <option :value="0">自动选择（用户组授权的第一条）</option>
+                  <option :value="0">请选择 SSH 凭证</option>
                   <option v-for="c in credentials" :key="c.id" :value="c.id">{{ c.name }}（{{ c.username }}）</option>
                 </select>
               </div>
@@ -377,6 +383,7 @@
               <span class="bx-status" :class="statusTone(t.status)">{{ statusLabel(t.status) }}</span>
               <span class="bx-hist-title">#{{ t.id }} {{ t.title }}</span>
               <span class="bx-hist-meta">{{ t.succeeded }}/{{ t.total }} 成功 · {{ t.created_name }} · {{ t.shell }} · {{ formatDateTime(t.started_at) }}</span>
+              <button class="bx-hist-apply" @click.stop="applyHistory(t)" title="把该任务的脚本、参数和主机恢复到表单"><i class="fas fa-arrow-rotate-left"></i> 应用</button>
               <span class="bx-hist-go">详情 →</span>
             </div>
             <div class="bx-pager">
@@ -394,6 +401,7 @@
         <div class="bx-modal">
           <div class="bx-modal-head"><span>确认批量执行</span><button class="bx-close" @click="confirmVisible = false">&times;</button></div>
           <div class="bx-modal-body">
+            <div class="bx-error" v-if="lastError"><i class="fas fa-circle-exclamation"></i> {{ lastError }}</div>
             <span class="bx-modal-label">即将在 <span style="color:#d03050">{{ selectedIds.length }}</span> 台主机上执行以下内容（{{ form.shell }}）</span>
             <pre class="bx-code">{{ form.script }}</pre>
             <div class="bx-hint" style="margin-top:10px">并发 {{ form.concurrency }} 台，单台超时 {{ form.timeout_sec }} 秒。请确认脚本无误，误操作会同时影响所有选中主机。</div>
@@ -431,7 +439,7 @@
     </div>
   </script>
 
-  <script src="/assets/js/core.js?v=20261109f"></script>
-  <script src="/assets/js/pages/batch-exec.js?v=20261108j"></script>
+  <script src="/assets/js/core.js?v=20261111a"></script>
+  <script src="/assets/js/pages/batch-exec.js?v=20261111c"></script>
 </body>
 </html>

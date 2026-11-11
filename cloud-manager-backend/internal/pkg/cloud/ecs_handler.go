@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"cloud-manager-backend/internal/config"
 	"cloud-manager-backend/internal/models"
 	"cloud-manager-backend/internal/pkg/cloud/aliyun"
 	"cloud-manager-backend/internal/pkg/cloud/aws"
@@ -51,6 +52,42 @@ func GetEcsFilterOptions(c *gin.Context) {
 			"regions":         regions,
 		},
 	})
+}
+
+// ecsWithConnectable 在 ECS 实例上附加「当前用户是否可连接」标记。
+// 匿名嵌入保证原有字段全部平铺输出，前端其它字段的读取方式不变。
+type ecsWithConnectable struct {
+	models.EcsInstance
+	CanConnect bool `json:"can_connect"`
+}
+
+// getEcsConnectableSet 返回当前用户可连接的 ECS 主键集合。
+// 判权口径与 SSHTerminal 完全一致：管理员可连接全部资产；普通用户需命中
+// 「用户组 → bastion_group_assets」授权。堡垒机未启用时返回空集合。
+func getEcsConnectableSet(c *gin.Context) (bool, map[uint64]bool) {
+	allowed := make(map[uint64]bool)
+	if !config.GetBastionConfig().Enabled {
+		return false, allowed
+	}
+	role, _ := c.Get("role")
+	if role == "admin" {
+		return true, allowed
+	}
+	uidStr, _ := c.Get("user_id")
+	uid, _ := strconv.Atoi(fmt.Sprint(uidStr))
+
+	var groupIDs []uint
+	models.DB.Model(&models.UserGroupMember{}).Where("user_id = ?", uid).Pluck("group_id", &groupIDs)
+	if len(groupIDs) == 0 {
+		return false, allowed
+	}
+	var ecsIDs []uint64
+	models.DB.Model(&models.BastionGroupAsset{}).
+		Where("group_id IN ?", groupIDs).Distinct("ecs_id").Pluck("ecs_id", &ecsIDs)
+	for _, id := range ecsIDs {
+		allowed[id] = true
+	}
+	return false, allowed
 }
 
 // GetEcsInstances 跨平台查询ECS实例列表  GET /api/ecs?page=1&size=10&keyword=&account_id=&platform=&region_id=&is_offline=0
@@ -121,11 +158,20 @@ func GetEcsInstances(c *gin.Context) {
 	query.Count(&total)
 	query.Order("updated_at DESC").Offset((page - 1) * size).Limit(size).Find(&instances)
 
+	connectAll, connectSet := getEcsConnectableSet(c)
+	list := make([]ecsWithConnectable, 0, len(instances))
+	for i := range instances {
+		list = append(list, ecsWithConnectable{
+			EcsInstance: instances[i],
+			CanConnect:  connectAll || connectSet[instances[i].ID],
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"msg":  "success",
 		"data": gin.H{
-			"list":  instances,
+			"list":  list,
 			"total": total,
 			"page":  page,
 			"size":  size,
