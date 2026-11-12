@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320" width="1440" height="320" role="img" aria-label="Cloud Manager banner">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#061a3a"/>
+      <stop offset="45%" stop-color="#0b3d91"/>
+      <stop offset="100%" stop-color="#1677ff"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#40a9ff" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#69f0ae" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#ffffff" stroke-opacity=".07" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="txt" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#bae0ff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1440" height="320" fill="url(#bg)"/>
+  <rect width="1440" height="320" fill="url(#grid)"/>
+  <circle cx="1180" cy="70" r="260" fill="url(#glow)" opacity=".35"/>
+  <circle cx="1320" cy="280" r="150" fill="#1677ff" opacity=".18"/>
+
+  <g fill="none" stroke="#8ec5ff" stroke-opacity=".35" stroke-width="1.5">
+    <path d="M880 210 H1330"/>
+    <path d="M940 170 H1270"/>
+    <path d="M1000 250 H1380"/>
+  </g>
+  <g fill="#8ec5ff" fill-opacity=".55">
+    <circle cx="880" cy="210" r="4"/><circle cx="1330" cy="210" r="4"/>
+    <circle cx="940" cy="170" r="4"/><circle cx="1270" cy="170" r="4"/>
+    <circle cx="1000" cy="250" r="4"/><circle cx="1380" cy="250" r="4"/>
+  </g>
+
+  <g transform="translate(1050 88)">
+    <rect x="0" y="0" width="240" height="118" rx="12" fill="#ffffff" fill-opacity=".10" stroke="#ffffff" stroke-opacity=".28"/>
+    <rect x="0" y="0" width="240" height="26" rx="12" fill="#ffffff" fill-opacity=".12"/>
+    <circle cx="16" cy="13" r="4" fill="#ff7875"/><circle cx="30" cy="13" r="4" fill="#ffc53d"/><circle cx="44" cy="13" r="4" fill="#73d13d"/>
+    <rect x="18" y="42" width="86" height="8" rx="4" fill="#ffffff" fill-opacity=".55"/>
+    <rect x="18" y="60" width="150" height="6" rx="3" fill="#ffffff" fill-opacity=".28"/>
+    <rect x="18" y="74" width="120" height="6" rx="3" fill="#ffffff" fill-opacity=".28"/>
+    <rect x="18" y="94" width="204" height="8" rx="4" fill="#69f0ae" fill-opacity=".25"/>
+    <rect x="18" y="94" width="150" height="8" rx="4" fill="#69f0ae" fill-opacity=".85"/>
+  </g>
+
+  <g font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">
+    <text x="72" y="112" fill="url(#txt)" font-size="52" font-weight="700" letter-spacing="2">Cloud Manager</text>
+    <text x="74" y="156" fill="#bae0ff" font-size="21" letter-spacing="1">多云资源统一管理平台 · 一个控制台管好四朵云</text>
+    <g font-size="14" font-weight="600">
+      <rect x="72" y="188" width="96" height="32" rx="16" fill="#ffffff" fill-opacity=".14" stroke="#ffffff" stroke-opacity=".3"/>
+      <text x="92" y="209" fill="#e6f4ff">阿里云</text>
+      <rect x="178" y="188" width="96" height="32" rx="16" fill="#ffffff" fill-opacity=".14" stroke="#ffffff" stroke-opacity=".3"/>
+      <text x="198" y="209" fill="#e6f4ff">腾讯云</text>
+      <rect x="284" y="188" width="80" height="32" rx="16" fill="#ffffff" fill-opacity=".14" stroke="#ffffff" stroke-opacity=".3"/>
+      <text x="308" y="209" fill="#e6f4ff">AWS</text>
+      <rect x="374" y="188" width="120" height="32" rx="16" fill="#ffffff" fill-opacity=".14" stroke="#ffffff" stroke-opacity=".3"/>
+      <text x="392" y="209" fill="#e6f4ff">Cloudflare</text>
+    </g>
+    <text x="72" y="264" fill="#8ec5ff" font-size="15">Go · Gin · GORM  /  Vue 3 免构建  /  WebSSH · 批量执行 · 日志排查</text>
+  </g>
+</svg>

@@ -40,6 +40,9 @@ bastion:
   batch_max_script_bytes: 32768  # 脚本内容最大字节数
   batch_max_output_bytes: 16384  # 单台 stdout/stderr 各自留存的最大字节数
   batch_max_assets: 200          # 单任务最多可选主机数
+  # 脚本库目录：放 .sh 脚本，可配同名 .json 定义参数；服务器上直接丢文件进去会自动发现。
+  # 生产务必用绝对路径，且不要放在代码目录内（避免升级后端时被覆盖）；目录需可读写并纳入备份。
+  script_dir: "/data/devops/cloud-manager/script-library"
 
 # 日志配置
 log:

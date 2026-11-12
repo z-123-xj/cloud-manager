@@ -109,8 +109,11 @@
             <table class="table table-fixed ecs-table" :style="tableCssVars" :class="hiddenColClasses">
               <thead>
                 <tr>
-                  <th v-for="c in ecsColumns" :key="c.key">
-                    {{ c.label }}
+                  <th v-for="c in ecsColumns" :key="c.key" :class="{ 'th-sortable': c.key === 'name' }">
+                    <span v-if="c.key === 'name'" class="ecs-th-sort" @click.stop="toggleNameSort()" title="点击按实例名称排序">
+                      {{ c.label }} <span class="sort-arrow" :class="nameSortDir">{{ nameSortIcon }}</span>
+                    </span>
+                    <template v-else>{{ c.label }}</template>
                     <span class="ecs-col-resize-handle" @mousedown.stop.prevent="startResize($event, c.key)"></span>
                   </th>
                   </tr>
@@ -272,8 +275,8 @@
     </div>
   </script>
 
-  <script src="/assets/js/core.js?v=20261111a"></script>
+  <script src="/assets/js/core.js?v=20261112a"></script>
   <script src="/assets/js/shared-sync.js?v=20261109l"></script>
-  <script src="/assets/js/pages/ecs.js?v=20261111a"></script>
+  <script src="/assets/js/pages/ecs.js?v=20261112a"></script>
 </body>
 </html>

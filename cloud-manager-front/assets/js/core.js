@@ -37,6 +37,7 @@
     resourcePackages: '/assets/pages/resource-packages.html',
     bastionAssets: '/assets/pages/ecs.html', // 堡垒机资产页已合并进 ECS 实例页
     batchExec: '/assets/pages/batch-exec.html',
+    scripts: '/assets/pages/scripts.html',
     bastionGroups: '/bastion/groups',
     bastionCredentials: '/bastion/credentials',
     bastionTerminal: '/bastion/terminal',
@@ -64,6 +65,7 @@
       { label: '凭证管理', path: ROUTES.bastionCredentials, count: 'SSH 凭证' },
       { label: '用户组管理', path: ROUTES.bastionGroups, count: '账号管理 / 授权' },
       { label: '批量执行', path: ROUTES.batchExec, count: '命令/脚本下发' },
+      { label: '脚本库', path: ROUTES.scripts, count: '模板管理' },
       { label: '日志排查', path: ROUTES.logs, count: 'Nginx 日志分析' },
     ] },
     { key: 'resource', title: '资源', icon: 'fas fa-cubes', items: [

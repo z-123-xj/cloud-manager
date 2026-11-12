@@ -34,8 +34,10 @@ type batchRunReq struct {
 	Network      string `json:"network"`
 	Script       string `json:"script"`
 	Shell        string `json:"shell"`
-	Concurrency  int    `json:"concurrency"`
-	TimeoutSec   int    `json:"timeout_sec"`
+	Concurrency  int               `json:"concurrency"`
+	TimeoutSec   int               `json:"timeout_sec"`
+	ScriptID     string            `json:"script_id"` // 脚本库模式：服务端按 ID 读文件并渲染
+	Params       map[string]string `json:"params"`    // 模板参数值，服务端校验后替换 {{KEY}}
 }
 
 type batchTarget struct {
@@ -80,6 +82,28 @@ func RunBatchTask(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		batchFail(c, "请求参数错误: %s", err.Error())
 		return
+	}
+
+	// 脚本库模式：正文由服务端从脚本目录读取并渲染，前端只传 script_id + params，
+	// 避免前端绕过版本与参数校验直接提交任意脚本；手写模式仍使用 req.Script。
+	if strings.TrimSpace(req.ScriptID) != "" {
+		sf, err := loadScript(req.ScriptID)
+		if err != nil {
+			batchFail(c, "%s", err.Error())
+			return
+		}
+		rendered, err := renderScript(sf, req.Params)
+		if err != nil {
+			batchFail(c, "%s", err.Error())
+			return
+		}
+		req.Script = rendered
+		if sf.Meta.Shell != "" {
+			req.Shell = sf.Meta.Shell
+		}
+		if strings.TrimSpace(req.Title) == "" {
+			req.Title = sf.Meta.Name
+		}
 	}
 
 	req.Title = strings.TrimSpace(req.Title)

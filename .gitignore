@@ -15,6 +15,9 @@ Thumbs.db
 .env
 .env.*
 
+# 脚本库：用户自行添加/上传的 .sh 与 .json，不随代码提交（需要单独备份）
+**/script-library/
+
 # 编译产物
 *.exe
 *.dll

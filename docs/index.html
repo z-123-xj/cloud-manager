@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloud Manager · 多云资源统一管理平台</title>
+<style>
+:root{--p:#1677ff;--p2:#4096ff;--dark:#061a3a;--ink:#0f172a;--muted:#64748b;--line:rgba(148,163,184,.18)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:"Microsoft YaHei","PingFang SC",-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:#f7f9fc;line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:20;background:rgba(6,26,58,.86);backdrop-filter:blur(14px);border-bottom:1px solid rgba(255,255,255,.1)}
+.nav .wrap{height:62px;display:flex;align-items:center;gap:28px;color:#fff}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+.logo i{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--p2),#69f0ae);display:grid;place-items:center;color:#fff;font-style:normal;font-size:14px}
+.nav-links{display:flex;gap:24px;font-size:13px;opacity:.82;margin-left:auto}
+.nav-links a:hover{opacity:1;color:#8ec5ff}
+.nav .gh{margin-left:8px;font-size:12px;border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:6px 13px}
+
+/* hero */
+.hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#041225,#0b3d91 58%,#1677ff);color:#fff;padding:96px 0 110px}
+.hero::before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(to bottom,#000,transparent)}
+.hero::after{content:"";position:absolute;width:620px;height:620px;right:-160px;top:-260px;border-radius:50%;background:radial-gradient(circle,rgba(105,240,174,.28),transparent 65%)}
+.hero .wrap{position:relative;z-index:2}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:1px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:20px;padding:6px 15px}
+.eyebrow i{width:7px;height:7px;border-radius:50%;background:#69f0ae;box-shadow:0 0 10px #69f0ae}
+h1{font-size:54px;line-height:1.18;margin:24px 0 16px;letter-spacing:1px}
+h1 em{font-style:normal;background:linear-gradient(90deg,#8ec5ff,#69f0ae);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{font-size:17px;opacity:.86;max-width:660px}
+.cta{display:flex;gap:12px;margin-top:34px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;transition:.2s}
+.btn.pri{background:#fff;color:#0b3d91}
+.btn.pri:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.22)}
+.btn.out{border:1px solid rgba(255,255,255,.4);color:#fff}
+.btn.out:hover{background:rgba(255,255,255,.12)}
+.clouds{display:flex;gap:10px;margin-top:44px;flex-wrap:wrap}
+.clouds span{font-size:12px;border:1px solid rgba(255,255,255,.24);background:rgba(255,255,255,.08);border-radius:16px;padding:5px 15px}
+
+/* counters */
+.counters{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:-52px;position:relative;z-index:5}
+.counter{background:#fff;border-radius:12px;padding:24px 22px;box-shadow:0 8px 30px rgba(15,23,42,.09);border:1px solid #eef2f7}
+.counter b{display:block;font-size:34px;color:#0b3d91;letter-spacing:.5px}
+.counter span{font-size:13px;color:var(--muted)}
+
+/* sections */
+section{padding:76px 0}
+.sec-h{text-align:center;margin-bottom:44px}
+.sec-h .k{font-size:12px;letter-spacing:2px;color:var(--p);font-weight:700}
+.sec-h h2{font-size:32px;margin:8px 0 10px}
+.sec-h p{color:var(--muted);font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.feat{background:#fff;border:1px solid #e9eef5;border-radius:12px;padding:24px;transition:.25s;position:relative;overflow:hidden}
+.feat:hover{transform:translateY(-4px);box-shadow:0 14px 34px rgba(22,119,255,.12);border-color:#bae0ff}
+.feat .ic{width:42px;height:42px;border-radius:11px;background:linear-gradient(135deg,#e6f4ff,#d6e4ff);color:var(--p);display:grid;place-items:center;font-weight:700;font-size:15px;margin-bottom:16px}
+.feat h3{font-size:16px;margin-bottom:8px}
+.feat p{font-size:13px;color:var(--muted)}
+.feat .n{position:absolute;right:18px;top:14px;font-size:34px;font-weight:800;color:#f0f5ff}
+
+/* showcase */
+.showcase{background:linear-gradient(180deg,#0b1d3a,#061a3a);color:#fff}
+.showcase .sec-h h2{color:#fff}.showcase .sec-h p{color:#9fb6d9}
+.tabs{display:flex;justify-content:center;gap:10px;margin-bottom:26px;flex-wrap:wrap}
+.tab{font-size:13px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#cbdcf5;padding:8px 20px;border-radius:20px;cursor:pointer;transition:.2s}
+.tab.on{background:#fff;color:#0b3d91;font-weight:600;border-color:#fff}
+.shot{max-width:1060px;margin:0 auto;border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.14);background:#fff}
+.shot img{display:none;width:100%;height:auto}
+.shot img.on{display:block}
+.shot-note{text-align:center;font-size:12px;color:#8ea8cc;margin-top:16px}
+
+/* architecture */
+.arch{display:grid;grid-template-columns:1fr 56px 1fr 56px 1fr;align-items:center;gap:8px;background:#fff;border:1px solid #e9eef5;border-radius:14px;padding:30px}
+.arch .box{border:1px solid #e6eefb;border-radius:10px;padding:20px;background:linear-gradient(180deg,#fff,#f7fbff)}
+.arch .box h4{font-size:15px;color:#0b3d91;margin-bottom:10px}
+.arch .box p{font-size:12.5px;color:var(--muted)}
+.arch .arrow{text-align:center;font-size:22px;color:var(--p)}
+.arch .pill{display:inline-block;font-size:11px;background:#e6f4ff;color:var(--p);border-radius:5px;padding:2px 8px;margin:3px 4px 3px 0}
+
+/* stack + quickstart */
+.stack{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:8px}
+.stack span{font-size:13px;border:1px solid #dbe7f8;background:#fff;color:#334155;border-radius:8px;padding:9px 16px}
+.quick{background:#0d1117;border-radius:12px;color:#c9d1d9;padding:26px 30px;font-family:Consolas,Monaco,monospace;font-size:13px;line-height:2;overflow-x:auto;box-shadow:0 16px 40px rgba(15,23,42,.18)}
+.quick .c{color:#8b949e}.quick .g{color:#7ee787}.quick .b{color:#79c0ff}
+.two{display:grid;grid-template-columns:1fr 1.2fr;gap:28px;align-items:center}
+.two h2{font-size:28px;margin-bottom:14px}
+.two p{font-size:14px;color:var(--muted);margin-bottom:12px}
+.tick{list-style:none;font-size:13.5px;color:#334155}
+.tick li{padding:5px 0 5px 24px;position:relative}
+.tick li::before{content:"✓";position:absolute;left:0;color:var(--p);font-weight:700}
+
+footer{background:#061a3a;color:#8ea8cc;text-align:center;padding:30px 0;font-size:12.5px}
+footer a{color:#8ec5ff}
+
+@media(max-width:900px){
+  h1{font-size:36px}.counters,.grid{grid-template-columns:repeat(2,1fr)}
+  .arch{grid-template-columns:1fr}.arch .arrow{transform:rotate(90deg)}
+  .two{grid-template-columns:1fr}.nav-links{display:none}
+}
+@media(max-width:560px){.counters,.grid{grid-template-columns:1fr}h1{font-size:30px}}
+</style>
+</head>
+<body>
+
+<nav class="nav"><div class="wrap">
+  <div class="logo"><i>☁</i> Cloud Manager</div>
+  <div class="nav-links">
+    <a href="#features">核心能力</a><a href="#showcase">界面预览</a><a href="#arch">架构</a><a href="#start">快速开始</a>
+  </div>
+  <a class="gh" href="https://github.com/z-123-xj/cloud-manager" target="_blank">GitHub ↗</a>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow"><i></i> GO · GIN · GORM / VUE 3 免构建</div>
+  <h1>把四朵云，<br>收进<em>一个控制台</em></h1>
+  <p>多云资源台账、统一同步引擎、WebSSH 堡垒机、批量执行与日志排查——从资源到操作，一条动线打通日常运维。</p>
+  <div class="cta">
+    <a class="btn pri" href="#showcase">查看界面预览 →</a>
+    <a class="btn out" href="https://github.com/z-123-xj/cloud-manager#快速开始" target="_blank">快速开始</a>
+  </div>
+  <div class="clouds"><span>阿里云</span><span>腾讯云</span><span>AWS</span><span>Cloudflare</span><span>域名 / DNS / ECS / CDN</span></div>
+</div></header>
+
+<div class="wrap"><div class="counters">
+  <div class="counter"><b>4</b><span>家云厂商统一纳管</span></div>
+  <div class="counter"><b>12+</b><span>业务页面</span></div>
+  <div class="counter"><b>16+</b><span>功能模块</span></div>
+  <div class="counter"><b>3万+</b><span>行全栈代码</span></div>
+</div></div>
+
+<section id="features"><div class="wrap">
+  <div class="sec-h"><div class="k">CAPABILITIES</div><h2>不只是资源台账</h2><p>从「看得见」到「能操作、可追溯」</p></div>
+  <div class="grid">
+    <div class="feat"><span class="n">01</span><div class="ic">⇄</div><h3>统一同步引擎</h3><p>Provider 接口抽象四家云 SDK，域名 / DNS / ECS / CDN 一键全量同步，SSE 实时进度 + 每日定时。</p></div>
+    <div class="feat"><span class="n">02</span><div class="ic">域</div><h3>域名与 DNS 治理</h3><p>到期 30 天/过期漏斗、解析记录 CRUD 与启停，针对阿里云重复限制做智能「先查后比、删+增」。</p></div>
+    <div class="feat"><span class="n">03</span><div class="ic">🔑</div><h3>凭据与权限</h3><p>AccessKey AES 加密托管、Secret 脱敏回显，admin / user / readonly 三角色 + 验证码 + IP 限流。</p></div>
+    <div class="feat"><span class="n">04</span><div class="ic">&gt;_</div><h3>WebSSH 堡垒机</h3><p>xterm.js 多标签终端、SFTP 分片上传断点续传、凭证与用户组授权、空闲会话自动回收。</p></div>
+    <div class="feat"><span class="n">05</span><div class="ic">▦</div><h3>批量执行</h3><p>脚本并发下发、单机超时与取消，逐台 stdout / stderr / 退出码落库审计，可追溯可复盘。</p></div>
+    <div class="feat"><span class="n">06</span><div class="ic">◷</div><h3>日志排查</h3><p>Nginx 日志路径探查 + awk 聚合分析，go:embed 运维脚本按 md5 自动同步到目标机。</p></div>
+  </div>
+</div></section>
+
+<section class="showcase" id="showcase"><div class="wrap">
+  <div class="sec-h"><div class="k">UI PREVIEW</div><h2>界面一览</h2><p>静态高保真复刻 · 演示数据 · 无需启动服务</p></div>
+  <div class="tabs">
+    <span class="tab on" data-t="0">工作台</span><span class="tab" data-t="1">资源台账</span><span class="tab" data-t="2">运维工作台</span>
+  </div>
+  <div class="shot">
+    <img class="on" src="screenshots/dashboard.png" alt="工作台界面">
+    <img src="screenshots/resources.png" alt="资源台账界面">
+    <img src="screenshots/ops.png" alt="运维工作台界面">
+  </div>
+  <div class="shot-note">界面图由仓库内 preview.html 自动截图生成，本地运行后可替换为真实截图</div>
+</div></section>
+
+<section id="arch"><div class="wrap">
+  <div class="sec-h"><div class="k">ARCHITECTURE</div><h2>简洁，但不将就</h2><p>后端单二进制直托前端，同源 /api，没有构建链路与跨域负担</p></div>
+  <div class="arch">
+    <div class="box">
+      <h4>前端 · Vue 3 免构建</h4>
+      <p>SPA 主站 + 12 个独立页面，单页错误隔离；xterm.js Web 终端。</p>
+      <span class="pill">Vue 3</span><span class="pill">core.js</span><span class="pill">Ant Design 风格</span>
+    </div>
+    <div class="arrow">→</div>
+    <div class="box">
+      <h4>后端 · Go / Gin</h4>
+      <p>Router + 鉴权中间件、统一同步引擎、Bastion、GORM 模型；SSE 与 WebSocket 实时通道。</p>
+      <span class="pill">Gin</span><span class="pill">GORM</span><span class="pill">SSE / WS</span><span class="pill">MySQL</span>
+    </div>
+    <div class="arrow">→</div>
+    <div class="box">
+      <h4>云厂商适配层</h4>
+      <p>Provider 接口统一四家差异，Cloudflare 作为 DNS 特例跳过 ECS/CDN 同步。</p>
+      <span class="pill">阿里云 SDK</span><span class="pill">腾讯云 SDK</span><span class="pill">AWS SDK v2</span><span class="pill">Cloudflare REST</span>
+    </div>
+  </div>
+  <div class="stack" style="margin-top:26px">
+    <span>Go 1.26</span><span>Gin</span><span>GORM + MySQL</span><span>Viper</span><span>gorilla/websocket</span>
+    <span>pkg/sftp</span><span>AES Token</span><span>Vue 3</span><span>xterm.js</span><span>Nginx + systemd</span>
+  </div>
+</div></section>
+
+<section id="start" style="padding-top:20px"><div class="wrap two">
+  <div>
+    <div class="sec-h" style="text-align:left;margin-bottom:16px"><div class="k">QUICK START</div><h2>三步跑起来</h2></div>
+    <p>两个目录需同级，进程工作目录为 <code>cloud-manager-backend/</code>；前端由后端托管，不需要单独起前端服务。</p>
+    <ul class="tick">
+      <li>MySQL 5.7+，建库 <code>cloud_manager</code></li>
+      <li><code>config.yaml</code> 不入库，从 example 复制</li>
+      <li><code>./devops init</code> 幂等建表并创建管理员</li>
+      <li>默认监听 <code>:8080</code>，浏览器直接访问</li>
+    </ul>
+  </div>
+  <div class="quick">
+<span class="c"># 1. 数据库</span>
+mysql -e <span class="g">"CREATE DATABASE cloud_manager DEFAULT CHARACTER SET utf8mb4;"</span>
+
+<span class="c"># 2. 配置</span>
+cd cloud-manager-backend
+cp config.example.yaml config.yaml
+export <span class="b">AES_SECRET_KEY</span>=<span class="g">'&lt;32-byte-random-key&gt;'</span>
+
+<span class="c"># 3. 构建 / 初始化 / 启动</span>
+go build -o devops .
+./devops init
+./devops                       <span class="c"># http://localhost:8080</span>
+  </div>
+</div></section>
+
+<footer>
+  Cloud Manager · 个人技术作品 · 仓库内不含任何真实云账号与生产数据 ·
+  <a href="https://github.com/z-123-xj/cloud-manager">GitHub</a> ·
+  <a href="https://github.com/z-123-xj/cloud-manager#面试看点">面试看点</a>
+</footer>
+
+<script>
+document.querySelectorAll('.tab').forEach(function(t){
+  t.addEventListener('click',function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on')});
+    document.querySelectorAll('.shot img').forEach(function(x){x.classList.remove('on')});
+    t.classList.add('on');
+    document.querySelectorAll('.shot img')[+t.dataset.t].classList.add('on');
+  });
+});
+</script>
+</body>
+</html>

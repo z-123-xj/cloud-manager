@@ -39,6 +39,16 @@
         credential_id: 0, concurrency: 5, timeout_sec: 300,
       });
 
+      // 脚本库模式：正文由服务端读目录并渲染，前端只提交 script_id + params
+      const mode = ref('manual'); // manual | library
+      const scripts = ref([]);
+      const selectedScriptId = ref('');
+      const scriptParamValues = reactive({});
+      const scriptPreview = ref('');
+      const currentScript = computed(() =>
+        scripts.value.find(s => s.id === selectedScriptId.value) || null);
+      const scriptParams = computed(() => (currentScript.value && currentScript.value.params) || []);
+
       const submitting = ref(false);
       const lastError = ref('');
       const confirmVisible = ref(false);
@@ -196,6 +206,76 @@
         }, 1000);
       }
 
+      async function fetchScripts(preselectId) {
+        const data = await api('/api/bastion/scripts');
+        if (!data) return;
+        scripts.value = (data.items || []).map(s => ({ ...s, params: s.params || [] }));
+        const id = preselectId || selectedScriptId.value;
+        if (id && scripts.value.some(s => s.id === id)) {
+          selectedScriptId.value = id;
+          onScriptChange();
+        }
+      }
+
+      function onScriptChange() {
+        scriptPreview.value = '';
+        Object.keys(scriptParamValues).forEach(k => delete scriptParamValues[k]);
+        const s = currentScript.value;
+        if (!s) return;
+        (s.params || []).forEach(p => { scriptParamValues[p.key] = p.default || ''; });
+        if (s.shell) form.shell = s.shell;
+        if (s.timeout_sec) form.timeout_sec = s.timeout_sec;
+        if (s.concurrency) form.concurrency = s.concurrency;
+        if (!form.title.trim()) form.title = s.name || '';
+      }
+
+      async function previewScript() {
+        if (!selectedScriptId.value) { showToast('请先选择脚本', 'error'); return; }
+        const params = {};
+        scriptParams.value.forEach(p => {
+          const v = scriptParamValues[p.key];
+          if (v !== undefined && v !== '') params[p.key] = String(v);
+        });
+        const data = await api('/api/bastion/scripts/preview?id=' + encodeURIComponent(selectedScriptId.value) +
+          '&params=' + encodeURIComponent(JSON.stringify(params)));
+        if (!data) return;
+        scriptPreview.value = data.content || '';
+        showToast('已按当前参数渲染预览');
+      }
+
+      // 只重跑失败/取消的主机：用任务里保存的渲染后正文快照，不重新读脚本库，版本可复现
+      async function retryFailed(t) {
+        const data = await api('/api/bastion/batch/tasks/' + t.id);
+        if (!data || !data.task) return;
+        const failed = (data.results || [])
+          .filter(r => r.status === 'failed' || r.status === 'canceled')
+          .map(r => Number(r.ecs_id)).filter(id => id > 0);
+        if (!failed.length) { showToast('该任务没有失败主机', 'error'); return; }
+        await Promise.all([fetchAssets(), fetchCredentials()]);
+        const valid = new Set(assets.value.map(a => Number(a.id)));
+        const picked = Array.from(new Set(failed)).filter(id => valid.has(id));
+        if (!picked.length) { showToast('失败主机均已不在当前可用资产中，请重新选择', 'error'); return; }
+
+        const task = data.task;
+        mode.value = 'manual';
+        selectedScriptId.value = '';
+        scriptPreview.value = '';
+        form.title = '重跑 #' + t.id + ' 失败主机';
+        form.script = task.script || '';
+        form.shell = task.shell || 'sh';
+        form.network = task.network || 'public';
+        form.concurrency = task.concurrency || 5;
+        form.timeout_sec = task.timeout_sec || 300;
+        const credId = Number(task.credential_id) || 0;
+        form.credential_id = credentials.value.some(c => Number(c.id) === credId) ? credId : 0;
+        selectedIds.value = picked;
+        assetKeyword.value = '';
+        accountFilter.value = '';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        showToast('已恢复 #' + t.id + ' 的 ' + picked.length + ' 台失败主机，请确认后执行');
+        confirmRun();
+      }
+
       function confirmRun() {
         if (selectedIds.value.length === 0) { showToast('请先选择目标主机', 'error'); return; }
         // 凭证前置校验：没选、无可用凭证、或所选凭证已失效时先提示，不提交到后端再报错
@@ -208,12 +288,21 @@
           form.credential_id = 0;
           showToast('所选凭证已不可用，请重新选择 SSH 凭证', 'error'); return;
         }
-        if (!form.script.trim()) { showToast('请填写命令或脚本', 'error'); return; }
+        if (mode.value === 'library') {
+          if (!selectedScriptId.value) { showToast('请先选择脚本', 'error'); return; }
+          for (const p of scriptParams.value) {
+            if (p.required && !String(scriptParamValues[p.key] || '').trim()) {
+              showToast('请填写必填参数: ' + (p.label || p.key), 'error'); return;
+            }
+          }
+        } else {
+          if (!form.script.trim()) { showToast('请填写命令或脚本', 'error'); return; }
+          if (new Blob([form.script]).size > Number(options.value.max_script_bytes)) {
+            showToast('脚本超过 ' + options.value.max_script_bytes + ' 字节上限', 'error'); return;
+          }
+        }
         if (selectedIds.value.length > Number(options.value.max_assets)) {
           showToast('单次最多选择 ' + options.value.max_assets + ' 台', 'error'); return;
-        }
-        if (new Blob([form.script]).size > Number(options.value.max_script_bytes)) {
-          showToast('脚本超过 ' + options.value.max_script_bytes + ' 字节上限', 'error'); return;
         }
         if (Number(form.concurrency) < 1 || Number(form.concurrency) > Number(options.value.max_concurrency)) {
           showToast('并发台数需在 1 - ' + options.value.max_concurrency + ' 之间', 'error'); return;
@@ -239,11 +328,21 @@
           ecs_ids: selectedIds.value.map(Number),
           credential_id: Number(form.credential_id) || 0,
           network: form.network,
-          script: form.script,
           shell: form.shell,
           concurrency: Number(form.concurrency) || 5,
           timeout_sec: Number(form.timeout_sec) || 300,
         };
+        if (mode.value === 'library') {
+          payload.script_id = selectedScriptId.value;
+          const params = {};
+          scriptParams.value.forEach(p => {
+            const v = scriptParamValues[p.key];
+            if (v !== undefined && v !== '') params[p.key] = String(v);
+          });
+          payload.params = params;
+        } else {
+          payload.script = form.script;
+        }
         const data = await api('/api/bastion/batch/tasks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -301,6 +400,10 @@
         }
         if (skipped > 0) notes.push(skipped + ' 台主机已不在可用资产中，已跳过');
 
+        // 历史任务恢复的是渲染后正文快照，切回手写模式避免误读脚本库最新版本
+        mode.value = 'manual';
+        selectedScriptId.value = '';
+        scriptPreview.value = '';
         form.title = task.title || '';
         form.script = task.script || '';
         form.shell = (options.value.shells || []).indexOf(task.shell) >= 0 ? task.shell : 'sh';
@@ -354,6 +457,10 @@
         fetchAssets();
         fetchCredentials();
         loadHistory();
+        // 脚本库「去部署」带 ?script=<id> 进来时自动切到脚本库模式并预选
+        const pre = new URLSearchParams(window.location.search).get('script');
+        if (pre) mode.value = 'library';
+        fetchScripts(pre);
       });
       onUnmounted(stopPolling);
 
@@ -363,6 +470,8 @@
         isSelected, toggleHost, clearSelection, selectAllFiltered,
         credentials, options, form, displayIp, fetchAssets,
         submitting, lastError, confirmVisible, confirmRun, doRun, cancelTask,
+        mode, scripts, selectedScriptId, scriptParamValues, scriptPreview,
+        currentScript, scriptParams, fetchScripts, onScriptChange, previewScript, retryFailed,
         activeTask, results, progressPct,
         history, historyLoading, historyTotal, historyPage, historyTotalPages,
         loadHistory, goHistoryPage, openHistory, applyHistory,

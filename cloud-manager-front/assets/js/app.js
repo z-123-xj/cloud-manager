@@ -461,6 +461,7 @@ const app = createApp({
         { label: '凭证管理', path: '/bastion/credentials', count: 'SSH 凭证' },
         { label: '用户组管理', path: '/bastion/groups', count: '账号管理 / 授权' },
         { label: '批量执行', path: '/assets/pages/batch-exec.html', count: '命令/脚本下发' },
+        { label: '脚本库', path: '/assets/pages/scripts.html', count: '模板管理' },
         { label: '日志排查', path: LOG_PAGE, count: 'Nginx 日志分析' },
       ] },
       { key: 'resource', title: '资源', icon: 'fas fa-cubes', items: [

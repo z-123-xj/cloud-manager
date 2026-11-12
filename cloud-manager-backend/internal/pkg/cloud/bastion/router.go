@@ -16,6 +16,11 @@ func Router(r *gin.RouterGroup) {
 			admin.POST("/credentials", CreateCredential)
 			admin.PUT("/credentials/:id", UpdateCredential)
 			admin.DELETE("/credentials/:id", DeleteCredential)
+
+			// 脚本库写操作（仅管理员）
+			admin.POST("/scripts", SaveScript)
+			admin.POST("/scripts/upload", UploadScript)
+			admin.DELETE("/scripts", DeleteScript)
 		}
 
 		// 用户组管理（管理员）
@@ -42,6 +47,11 @@ func Router(r *gin.RouterGroup) {
 			adminGroups.POST("/:id/credentials", AddGroupCredentials)
 			adminGroups.DELETE("/:id/credentials/:cid", DeleteGroupCredential)
 		}
+
+		// 脚本库（登录用户可读，目录自动发现；写操作在上面 admin 组）
+		b.GET("/scripts", ListScripts)
+		b.GET("/scripts/detail", GetScript)
+		b.GET("/scripts/preview", PreviewScript)
 
 		// 资产列表（登录用户可见已授权的ECS）
 		b.GET("/assets", GetUserAssets)

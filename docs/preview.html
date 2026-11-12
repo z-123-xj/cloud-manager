@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Cloud Manager · 界面预览</title>
+<style>
+:root{
+  --p:#1677ff; --p-dark:#0958d9; --p-light:#4096ff; --bg:#f0f2f5;
+  --text:#1f1f1f; --muted:#8c8c8c; --line:#f0f0f0;
+  --ok:#52c41a; --warn:#faad14; --err:#ff4d4f;
+  --shadow:0 1px 2px rgba(0,0,0,.03),0 6px 20px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft YaHei","PingFang SC",-apple-system,"Segoe UI",sans-serif;background:#d9e2ee;color:var(--text);overflow:hidden}
+.app{width:1440px;height:900px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+
+/* ---------- top bar ---------- */
+.top{height:58px;flex:none;background:linear-gradient(90deg,#0842a0,var(--p) 48%,#3b8cff);display:flex;align-items:center;padding:0 22px;color:#fff;box-shadow:0 2px 10px rgba(9,88,217,.28)}
+.brand{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:700;letter-spacing:.5px;width:228px}
+.logo{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.18);display:grid;place-items:center;border:1px solid rgba(255,255,255,.35)}
+.logo svg{width:19px;height:19px}
+.crumb{font-size:13px;opacity:.85}
+.crumb b{font-weight:600}
+.search{margin-left:auto;width:270px;height:32px;border-radius:6px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);display:flex;align-items:center;gap:8px;padding:0 12px;font-size:12px;color:rgba(255,255,255,.85)}
+.search .kbd{margin-left:auto;border:1px solid rgba(255,255,255,.35);border-radius:4px;padding:1px 6px;font-size:10px}
+.top-icons{display:flex;align-items:center;gap:18px;margin-left:24px;font-size:16px;opacity:.9}
+.avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#ffd666,#fa8c16);display:grid;place-items:center;font-size:12px;font-weight:700;color:#613400;border:2px solid rgba(255,255,255,.7)}
+
+/* ---------- layout ---------- */
+.wrap{flex:1;display:flex;min-height:0}
+.side{width:218px;flex:none;background:#fff;border-right:1px solid #e8edf3;padding:14px 0}
+.nav-group{margin:10px 0 4px;padding:0 20px;font-size:11px;color:#a6b0bf;letter-spacing:1px}
+.nav{height:38px;display:flex;align-items:center;gap:11px;padding:0 20px;font-size:13px;color:#4b5565;cursor:default}
+.nav .ico{width:16px;height:16px;border-radius:4px;background:#e6f4ff;display:grid;place-items:center;font-size:9px;font-weight:700;color:var(--p)}
+.nav.on{background:#e6f4ff;color:var(--p-dark);font-weight:600;border-right:3px solid var(--p)}
+.nav.on .ico{background:var(--p);color:#fff}
+.nav .tag{margin-left:auto;font-size:10px;background:#f0f5ff;color:var(--p);border-radius:9px;padding:1px 7px}
+.main{flex:1;min-width:0;padding:20px 24px;overflow:hidden}
+.view{display:none;height:100%}
+.view.active{display:block}
+
+/* ---------- common cards ---------- */
+.card{background:#fff;border-radius:8px;box-shadow:var(--shadow);border:1px solid #eef1f5}
+.card-h{height:48px;padding:0 18px;display:flex;align-items:center;border-bottom:1px solid var(--line);font-size:14px;font-weight:600}
+.card-h .more{margin-left:auto;font-size:12px;color:var(--p);font-weight:400}
+.page-title{font-size:20px;font-weight:600;margin-bottom:4px}
+.page-sub{font-size:12px;color:var(--muted);margin-bottom:18px}
+.badge{display:inline-block;font-size:11px;border-radius:4px;padding:2px 8px;background:#f0f5ff;color:var(--p);border:1px solid #d6e4ff}
+.badge.ok{background:#f6ffed;color:#389e0d;border-color:#b7eb8f}
+.badge.warn{background:#fffbe6;color:#d48806;border-color:#ffe58f}
+.badge.err{background:#fff1f0;color:#cf1322;border-color:#ffa39e}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;background:var(--ok)}
+
+/* ---------- dashboard ---------- */
+.hero{height:120px;border-radius:10px;padding:18px 28px;color:#fff;position:relative;overflow:hidden;
+  background:linear-gradient(90deg,rgba(6,42,110,.94),rgba(22,119,255,.72) 62%,rgba(22,119,255,.28)),url('../cloud-manager-front/assets/img/infinity-bg.jpg') center/cover}
+.hero h1{font-size:24px;font-weight:600;letter-spacing:.5px}
+.hero p{font-size:13px;opacity:.9;margin-top:9px}
+.hero .chips{display:flex;gap:9px;margin-top:16px}
+.hero .chips span{font-size:11px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.32);border-radius:14px;padding:4px 12px}
+.hero .ring{position:absolute;right:52px;top:22px;width:88px;height:88px;border-radius:50%;border:9px solid rgba(255,255,255,.18);border-top-color:#69f0ae;display:grid;place-items:center;font-size:15px;font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:12px}
+.stat{padding:17px 18px;height:106px;position:relative}
+.stat .label{font-size:12px;color:var(--muted)}
+.stat .num{font-size:30px;font-weight:700;margin-top:6px;letter-spacing:.5px}
+.stat .delta{font-size:11px;color:var(--ok);margin-top:4px}
+.stat .ic{position:absolute;right:16px;top:16px;width:34px;height:34px;border-radius:9px;background:#e6f4ff;color:var(--p);display:grid;place-items:center;font-size:12px;font-weight:700}
+.stat:nth-child(2) .ic{background:#f6ffed;color:#389e0d}
+.stat:nth-child(3) .ic{background:#fff7e6;color:#d46b08}
+.stat:nth-child(4) .ic{background:#f9f0ff;color:#722ed1}
+.grid2{display:grid;grid-template-columns:1.55fr 1fr;gap:14px;margin-top:10px}
+.sync{padding:16px 18px}
+.sync-row{display:flex;align-items:center;gap:12px;margin:13px 0;font-size:12px}
+.sync-row .name{width:74px;color:#4b5565}
+.bar{flex:1;height:8px;background:#f0f2f5;border-radius:5px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--p),#69c0ff)}
+.sync-row .val{width:52px;text-align:right;color:var(--muted)}
+.chart{display:flex;align-items:flex-end;gap:16px;height:130px;padding:14px 22px 8px}
+.chart .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:6px}
+.chart .bar2{width:70%;border-radius:5px 5px 0 0;background:linear-gradient(180deg,var(--p-light),var(--p))}
+.chart .lb{font-size:10px;color:var(--muted)}
+
+/* ---------- resources table ---------- */
+.toolbar{display:flex;gap:10px;margin-bottom:14px}
+.field{height:34px;background:#fff;border:1px solid #d9d9d9;border-radius:6px;display:flex;align-items:center;padding:0 12px;font-size:12px;color:#8c8c8c;min-width:150px}
+.btn{height:34px;padding:0 16px;border-radius:6px;background:var(--p);color:#fff;font-size:12px;display:grid;place-items:center;border:none}
+.btn.ghost{background:#fff;color:#4b5565;border:1px solid #d9d9d9}
+.toolbar .right{margin-left:auto;display:flex;gap:9px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:#fafafa;color:#5c6675;font-weight:600;text-align:left;height:42px;padding:0 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+tbody td{height:44px;padding:0 14px;border-bottom:1px solid #f5f7fa;color:#3c4655;white-space:nowrap}
+tbody tr:nth-child(even){background:#fcfdff}
+.mono{font-family:Consolas,Monaco,monospace;font-size:11.5px;color:#374151}
+.cloud-tag{font-size:10.5px;padding:2px 7px;border-radius:3px;background:#fff7e6;color:#d46b08}
+.cloud-tag.aws{background:#fff1f0;color:#cf1322}
+.cloud-tag.tx{background:#e6f4ff;color:var(--p-dark)}
+.cloud-tag.cf{background:#f9f0ff;color:#722ed1}
+.pager{display:flex;align-items:center;justify-content:flex-end;gap:8px;height:52px;padding:0 18px;font-size:12px;color:var(--muted)}
+.pager .pg{width:26px;height:26px;border:1px solid #d9d9d9;border-radius:5px;display:grid;place-items:center;background:#fff}
+.pager .pg.on{background:var(--p);color:#fff;border-color:var(--p)}
+
+/* ---------- ops ---------- */
+.ops-grid{display:grid;grid-template-columns:1fr 1.25fr;gap:14px}
+.term{background:#0d1117;border-radius:8px;overflow:hidden;border:1px solid #263142;box-shadow:var(--shadow);height:524px}
+.term-h{height:36px;background:#161b22;display:flex;align-items:center;padding:0 14px;gap:7px;border-bottom:1px solid #263142}
+.term-h i{width:9px;height:9px;border-radius:50%;display:block}
+.term-h .t{margin-left:10px;font-size:11px;color:#8b949e;font-family:Consolas,monospace}
+.term-b{padding:14px 16px;font-family:Consolas,Monaco,monospace;font-size:12px;line-height:1.85;color:#c9d1d9}
+.term-b .g{color:#7ee787}.term-b .b{color:#79c0ff}.term-b .y{color:#d29922}.term-b .m{color:#8b949e}
+.cursor{display:inline-block;width:7px;height:14px;background:#7ee787;vertical-align:-2px}
+.exec{padding:14px 18px}
+.exec-line{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed #eef1f5;font-size:12px}
+.exec-line .host{width:132px;font-family:Consolas,monospace;color:#374151}
+.exec-line .code{flex:1;font-family:Consolas,monospace;color:#6b7280;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-row{display:flex;align-items:center;gap:10px;padding:9px 0;font-size:11.5px;border-bottom:1px dashed #eef1f5}
+.log-row .w{width:104px;color:#4b5565}
+.log-row .lb{flex:1;height:7px;background:#f0f2f5;border-radius:4px;overflow:hidden}
+.log-row .lb i{display:block;height:100%;background:linear-gradient(90deg,#ffc53d,#ff7875)}
+.log-row .n{width:52px;text-align:right;color:var(--muted)}
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.quick .q{height:78px;display:flex;flex-direction:column;justify-content:center;gap:7px;padding:0 16px;font-size:12px;color:#4b5565}
+.quick .q b{font-size:13px;color:var(--text)}
+.q-ico{width:26px;height:26px;border-radius:7px;background:#e6f4ff;color:var(--p);display:grid;place-items:center;font-size:11px;font-weight:700}
+.foot{margin-top:14px;font-size:11px;color:#9aa4b2;text-align:right}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M6 18h12a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.2 8.2 4.5 4.5 0 0 0 6 18z"/></svg></span>
+      云管平台
+    </div>
+    <div class="crumb">工作台 / <b id="crumb">总览</b></div>
+    <div class="search">全局搜索资源、域名、主机 <span class="kbd">Ctrl K</span></div>
+    <div class="top-icons"><span>◷</span><span>◇</span><span>⚙</span><span class="avatar">赵</span></div>
+  </div>
+
+  <div class="wrap">
+    <div class="side">
+      <div class="nav-group">主导航</div>
+      <div class="nav on" data-v="dashboard"><span class="ico">◈</span>工作台</div>
+      <div class="nav-group">域名服务</div>
+      <div class="nav" data-v="resources"><span class="ico">域</span>域名管理<span class="tag">128</span></div>
+      <div class="nav"><span class="ico">D</span>DNS 解析</div>
+      <div class="nav"><span class="ico">C</span>CDN 域名</div>
+      <div class="nav-group">计算与资源</div>
+      <div class="nav"><span class="ico">E</span>实例列表<span class="tag">342</span></div>
+      <div class="nav"><span class="ico">R</span>实例地域开通</div>
+      <div class="nav"><span class="ico">P</span>资源包</div>
+      <div class="nav-group">安全运维</div>
+      <div class="nav" data-v="ops"><span class="ico">终</span>堡垒机 / WebSSH</div>
+      <div class="nav"><span class="ico">批</span>批量执行</div>
+      <div class="nav"><span class="ico">脚</span>脚本库</div>
+      <div class="nav"><span class="ico">日</span>日志排查</div>
+      <div class="nav-group">系统</div>
+      <div class="nav"><span class="ico">账</span>云平台账号</div>
+      <div class="nav"><span class="ico">用</span>用户与权限</div>
+    </div>
+
+    <div class="main">
+      <!-- ============ DASHBOARD ============ -->
+      <section class="view" id="v-dashboard">
+        <div class="hero">
+          <h1>早上好，欢迎回到云管平台</h1>
+          <p>4 家云厂商 · 7 个云账号 · 资源数据已自动同步至今日 00:00</p>
+          <div class="chips"><span>域名管理</span><span>DNS 解析</span><span>实例列表</span><span>批量执行</span></div>
+          <div class="ring">4 / 4</div>
+        </div>
+        <div class="stats">
+          <div class="card stat"><div class="ic">域</div><div class="label">注册域名</div><div class="num">128</div><div class="delta">↑ 3 个 30 天内到期需关注</div></div>
+          <div class="card stat"><div class="ic">EC</div><div class="label">ECS 实例</div><div class="num">342</div><div class="delta">↑ 运行中 318 台 · 96.5%</div></div>
+          <div class="card stat"><div class="ic">DNS</div><div class="label">解析记录</div><div class="num">1,286</div><div class="delta">↑ 今日变更 12 条</div></div>
+          <div class="card stat"><div class="ic">SY</div><div class="label">今日同步任务</div><div class="num">4 / 4</div><div class="delta">↑ 全部成功 · 00:06 完成</div></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-h">资源分布概览 <span class="more">查看全部 →</span></div>
+            <div class="chart">
+              <div class="col"><div class="bar2" style="height:76%"></div><div class="lb">阿里云</div></div>
+              <div class="col"><div class="bar2" style="height:52%"></div><div class="lb">腾讯云</div></div>
+              <div class="col"><div class="bar2" style="height:88%"></div><div class="lb">AWS</div></div>
+              <div class="col"><div class="bar2" style="height:34%"></div><div class="lb">Cloudflare</div></div>
+              <div class="col"><div class="bar2" style="height:62%"></div><div class="lb">域名</div></div>
+              <div class="col"><div class="bar2" style="height:44%"></div><div class="lb">CDN</div></div>
+              <div class="col"><div class="bar2" style="height:70%"></div><div class="lb">DNS</div></div>
+              <div class="col"><div class="bar2" style="height:40%"></div><div class="lb">资源包</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-h">统一同步引擎 <span class="badge ok">SSE 实时进度</span></div>
+            <div class="sync">
+              <div class="sync-row"><span class="name">域名同步</span><span class="bar"><i style="width:100%"></i></span><span class="val">128 / 128</span></div>
+              <div class="sync-row"><span class="name">DNS 解析</span><span class="bar"><i style="width:100%"></i></span><span class="val">1286 / 1286</span></div>
+              <div class="sync-row"><span class="name">ECS 实例</span><span class="bar"><i style="width:92%"></i></span><span class="val">315 / 342</span></div>
+              <div class="sync-row"><span class="name">CDN 域名</span><span class="bar"><i style="width:100%"></i></span><span class="val">46 / 46</span></div>
+              <div class="sync-row"><span class="name">定时全量</span><span class="bar"><i style="width:100%;background:linear-gradient(90deg,#52c41a,#95de64)"></i></span><span class="val">已完成</span></div>
+              <div style="font-size:11px;color:#8c8c8c;margin-top:12px;border-top:1px dashed #eef1f5;padding-top:12px">每日 00:00 自动全量同步 · 支持按云账号勾选资源类型</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;padding:14px 18px;display:flex;align-items:center;gap:14px;font-size:12px;color:#4b5565">
+          <span class="badge ok"><span class="dot"></span>后端服务正常</span>
+          <span>MySQL 连接正常</span><span>·</span><span>最近登录：10 分钟前</span><span>·</span><span>会话空闲超时 12h</span>
+          <span style="margin-left:auto;color:var(--p)">常用操作：同步资源 · 打开终端 · 批量执行 →</span>
+        </div>
+        <div class="card" style="margin-top:10px">
+          <div class="card-h">最近操作审计 <span class="more">全部日志 →</span></div>
+          <table>
+            <thead><tr><th style="width:150px">时间</th><th style="width:110px">操作人</th><th style="width:130px">类型</th><th>内容</th><th style="width:110px">结果</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">11-11 09:41:02</td><td>admin</td><td>DNS 解析</td><td>修改 api.example.com 的 A 记录指向 10.0.1.12</td><td><span class="badge ok">成功</span></td></tr>
+              <tr><td class="mono">11-11 09:32:47</td><td>ops01</td><td>批量执行</td><td>向 5 台主机下发 nginx 状态检查脚本</td><td><span class="badge ok">成功</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ RESOURCES ============ -->
+      <section class="view" id="v-resources">
+        <div class="page-title">实例列表</div>
+        <div class="page-sub">云上同步 + 手工维护双来源，支持 SSH 端口 / 名称 / 备注就地维护</div>
+        <div class="toolbar">
+          <div class="field">实例名称 / IP / 实例 ID</div>
+          <div class="field">云平台：全部</div>
+          <div class="field">地域：全部</div>
+          <div class="right"><div class="btn ghost">按账号同步</div><div class="btn">＋ 新增实例</div></div>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>实例名称</th><th>实例 ID</th><th>云平台</th><th>地域</th><th>公网 / 私网 IP</th><th>规格</th><th>状态</th><th>SSH</th><th>来源</th></tr></thead>
+            <tbody>
+              <tr><td><b>web-prod-01</b></td><td class="mono">i-0a3f8c21b9d</td><td><span class="cloud-tag">阿里云</span></td><td>cn-hangzhou-h</td><td class="mono">47.98.xx.xx / 10.0.1.11</td><td>4C8G</td><td><span class="badge ok"><span class="dot"></span>运行中</span></td><td class="mono">9988</td><td>同步</td></tr>
+              <tr><td><b>api-prod-02</b></td><td class="mono">i-0b91de44a72</td><td><span class="cloud-tag">阿里云</span></td><td>cn-hangzhou-i</td><td class="mono">47.99.xx.xx / 10.0.1.12</td><td>8C16G</td><td><span class="badge ok"><span class="dot"></span>运行中</span></td><td class="mono">22</td><td>同步</td></tr>
+              <tr><td><b>gateway-test-01</b></td><td class="mono">ins-k3m8pq21</td><td><span class="cloud-tag tx">腾讯云</span></td><td>ap-guangzhou-3</td><td class="mono">129.2xx.xx.xx / 10.8.2.4</td><td>2C4G</td><td><span class="badge ok"><span class="dot"></span>运行中</span></td><td class="mono">22</td><td>同步</td></tr>
+              <tr><td><b>bastion-console</b></td><td class="mono">i-0771ce0ab34</td><td><span class="cloud-tag aws">AWS</span></td><td>ap-northeast-1a</td><td class="mono">54.1xx.xx.xx / 172.31.10.5</td><td>2C4G</td><td><span class="badge ok"><span class="dot"></span>运行中</span></td><td class="mono">9988</td><td>同步</td></tr>
+              <tr><td><b>task-worker-03</b></td><td class="mono">i-09f2be11c80</td><td><span class="cloud-tag aws">AWS</span></td><td>ap-northeast-1c</td><td class="mono">— / 172.31.10.18</td><td>4C8G</td><td><span class="badge warn">已停止</span></td><td class="mono">22</td><td>同步</td></tr>
+              <tr><td><b>edge-node-cf</b></td><td class="mono">manual-0007</td><td><span class="cloud-tag cf">Cloudflare</span></td><td>global</td><td class="mono">10.20.0.7</td><td>2C2G</td><td><span class="badge ok"><span class="dot"></span>运行中</span></td><td class="mono">22</td><td>手工</td></tr>
+              <tr><td><b>db-backup-01</b></td><td class="mono">i-0c55aa9f018</td><td><span class="cloud-tag">阿里云</span></td><td>cn-shanghai-b</td><td class="mono">— / 10.0.9.31</td><td>4C16G</td><td><span class="badge ok"><span class="dot"></span>运行中</span></td><td class="mono">22</td><td>同步</td></tr>
+              <tr><td><b>monitor-agent-02</b></td><td class="mono">ins-p9x2kf07</td><td><span class="cloud-tag tx">腾讯云</span></td><td>ap-beijing-5</td><td class="mono">— / 10.16.3.9</td><td>2C4G</td><td><span class="badge err">异常</span></td><td class="mono">22</td><td>同步</td></tr>
+              <tr><td><b>web-staging-01</b></td><td class="mono">i-0d18bb3ca46</td><td><span class="cloud-tag aws">AWS</span></td><td>ap-northeast-1a</td><td class="mono">13.1xx.xx.xx / 172.31.4.22</td><td>2C4G</td><td><span class="badge ok"><span class="dot"></span>运行中</span></td><td class="mono">22</td><td>同步</td></tr>
+              <tr><td><b>log-collector-01</b></td><td class="mono">i-0e77fc0d912</td><td><span class="cloud-tag">阿里云</span></td><td>cn-hangzhou-h</td><td class="mono">— / 10.0.1.40</td><td>4C8G</td><td><span class="badge ok"><span class="dot"></span>运行中</span></td><td class="mono">9988</td><td>同步</td></tr>
+            </tbody>
+          </table>
+          <div class="pager">共 342 条 <span class="pg">‹</span><span class="pg on">1</span><span class="pg">2</span><span class="pg">3</span><span class="pg">…</span><span class="pg">35</span><span class="pg">›</span></div>
+        </div>
+        <div class="foot">数据为界面演示数据 · 字段与真实系统一致</div>
+      </section>
+
+      <!-- ============ OPS ============ -->
+      <section class="view" id="v-ops">
+        <div class="page-title">安全运维工作台</div>
+        <div class="page-sub">WebSSH · 批量执行 · 脚本库 · Nginx 日志排查，操作全程留痕</div>
+        <div class="ops-grid">
+          <div>
+            <div class="card exec">
+              <div class="card-h" style="padding:0 0 12px 0;border:0">批量执行 <span class="more">历史任务 →</span></div>
+              <div style="background:#f6f8fb;border:1px solid #e8edf3;border-radius:6px;padding:9px 12px;font-family:Consolas,monospace;font-size:11.5px;color:#374151;margin-bottom:6px">$ systemctl status nginx --no-pager</div>
+              <div class="exec-line"><span class="host">10.0.1.11</span><span class="badge ok">exit 0</span><span class="code">active (running) since Wed 2026-11-11 09:12</span></div>
+              <div class="exec-line"><span class="host">10.0.1.12</span><span class="badge ok">exit 0</span><span class="code">active (running) since Wed 2026-11-11 09:12</span></div>
+              <div class="exec-line"><span class="host">10.8.2.4</span><span class="badge ok">exit 0</span><span class="code">active (running) since Wed 2026-11-11 09:14</span></div>
+              <div class="exec-line"><span class="host">172.31.10.5</span><span class="badge warn">running</span><span class="code">等待目标机返回…</span></div>
+              <div class="exec-line"><span class="host">172.31.10.18</span><span class="badge err">exit 3</span><span class="code">Unit nginx.service could not be found</span></div>
+              <div style="font-size:11px;color:#8c8c8c;margin-top:12px">并发 20 · 单机超时 3600s · 逐台 stdout/stderr/退出码落库审计</div>
+            </div>
+            <div class="card exec" style="margin-top:14px">
+              <div class="card-h" style="padding:0 0 12px 0;border:0">Nginx 日志排查 · Top URI</div>
+              <div class="log-row"><span class="w">/api/v1/order</span><span class="lb"><i style="width:92%"></i></span><span class="n">18,420</span></div>
+              <div class="log-row"><span class="w">/api/v1/user</span><span class="lb"><i style="width:71%"></i></span><span class="n">14,207</span></div>
+              <div class="log-row"><span class="w">/static/app.js</span><span class="lb"><i style="width:53%"></i></span><span class="n">10,661</span></div>
+              <div class="log-row"><span class="w">/healthz</span><span class="lb"><i style="width:38%"></i></span><span class="n">7,602</span></div>
+              <div class="log-row"><span class="w">5xx 状态码</span><span class="lb"><i style="width:8%"></i></span><span class="n">163</span></div>
+            </div>
+          </div>
+          <div class="term">
+            <div class="term-h"><i style="background:#ff5f56"></i><i style="background:#ffbd2e"></i><i style="background:#27c93f"></i><span class="t">web-prod-01 · xterm.js / WebSocket SSH</span></div>
+            <div class="term-b">
+              <div class="m">Last login: Wed Nov 11 09:41:02 2026 from 10.0.0.1</div>
+              <div><span class="g">root@web-prod-01</span>:<span class="b">~</span># systemctl status nginx --no-pager</div>
+              <div>● nginx.service - A high performance web server</div>
+              <div>&nbsp;&nbsp;&nbsp;Loaded: loaded (/lib/systemd/system/nginx.service; enabled)</div>
+              <div>&nbsp;&nbsp;&nbsp;<span class="g">Active: active (running)</span> since Wed 2026-11-11 09:12:44 CST</div>
+              <div>&nbsp;&nbsp;Main PID: 1109 (nginx)</div>
+              <div>&nbsp;&nbsp;&nbsp;&nbsp;Tasks: 5 (limit: 4915)</div>
+              <div>&nbsp;&nbsp;&nbsp;Memory: 18.2M</div>
+              <div class="m">&nbsp;</div>
+              <div><span class="g">root@web-prod-01</span>:<span class="b">~</span># tail -n 2 /var/log/nginx/access.log</div>
+              <div class="m">10.0.0.1 - - [11/Nov/2026:09:42:11] "GET /api/v1/order" 200</div>
+              <div class="m">10.0.0.1 - - [11/Nov/2026:09:42:12] "GET /healthz" 200</div>
+              <div class="m">&nbsp;</div>
+              <div><span class="g">root@web-prod-01</span>:<span class="b">~</span># <span class="y">df -h /</span></div>
+              <div>Filesystem&nbsp;&nbsp;Size&nbsp;&nbsp;Used&nbsp;&nbsp;Avail&nbsp;&nbsp;Use%</div>
+              <div>/dev/nvme0n1p1&nbsp;&nbsp;100G&nbsp;&nbsp;&nbsp;42G&nbsp;&nbsp;&nbsp;58G&nbsp;&nbsp;42%</div>
+              <div class="m">&nbsp;</div>
+              <div><span class="g">root@web-prod-01</span>:<span class="b">~</span># <span class="cursor"></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="quick">
+          <div class="card q"><div class="q-ico">终</div><b>WebSSH 多标签</b>凭证授权 · 空闲 30 分钟自动回收</div>
+          <div class="card q"><div class="q-ico">SF</div><b>SFTP 分片上传</b>断点续传 · MD5 校验</div>
+          <div class="card q"><div class="q-ico">脚</div><b>脚本库</b>.sh + 同名 .json 参数定义，自动发现</div>
+        </div>
+        <div class="foot">界面为静态复刻，数据均为演示数据</div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var v = new URLSearchParams(location.search).get('view') || 'dashboard';
+  if (['dashboard','resources','ops'].indexOf(v) < 0) v = 'dashboard';
+  document.getElementById('v-' + v).classList.add('active');
+  document.getElementById('crumb').textContent = {dashboard:'总览',resources:'实例列表',ops:'安全运维'}[v];
+  document.querySelectorAll('.nav[data-v]').forEach(function (n) {
+    n.classList.toggle('on', n.getAttribute('data-v') === v);
+  });
+})();
+</script>
+</body>
+</html>

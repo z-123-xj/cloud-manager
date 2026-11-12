@@ -156,7 +156,19 @@ func GetEcsInstances(c *gin.Context) {
 	}
 
 	query.Count(&total)
-	query.Order("updated_at DESC").Offset((page - 1) * size).Limit(size).Find(&instances)
+
+	// 排序参数走白名单，避免拼接用户输入造成注入；默认仍按更新时间倒序。
+	// 「实例ID/名称」列显示 instance_name，为空时回退 instance_id，按同样的显示值排序。
+	// 追加 id DESC 保证同名实例翻页时顺序稳定。
+	orderClause := "updated_at DESC"
+	if c.Query("sort_by") == "name" {
+		dir := "ASC"
+		if c.Query("sort_order") == "desc" {
+			dir = "DESC"
+		}
+		orderClause = "COALESCE(NULLIF(instance_name, ''), instance_id) " + dir + ", id DESC"
+	}
+	query.Order(orderClause).Offset((page - 1) * size).Limit(size).Find(&instances)
 
 	connectAll, connectSet := getEcsConnectableSet(c)
 	list := make([]ecsWithConnectable, 0, len(instances))

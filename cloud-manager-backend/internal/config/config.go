@@ -45,6 +45,7 @@ type BastionConfig struct {
 	MaxSessions   int
 	SessionTimeout int // SSH 会话无操作自动断开时长（分钟），仅统计真实终端 I/O（输出/输入），不含心跳
 	DefaultSSHPort int // 资产未设置/SSH端口非法时的全局默认SSH端口（老数据与漏设资产兜底）
+	ScriptDir     string // 脚本库目录：放 .sh 与同名 .json 元数据，服务器丢文件进去自动发现
 }
 
 func GetBastionConfig() BastionConfig {
@@ -52,11 +53,13 @@ func GetBastionConfig() BastionConfig {
 	viper.SetDefault("bastion.max_sessions", 200)
 	viper.SetDefault("bastion.session_timeout", 30)
 	viper.SetDefault("bastion.default_ssh_port", 22)
+	viper.SetDefault("bastion.script_dir", "script-library")
 	return BastionConfig{
 		Enabled:       viper.GetBool("bastion.enabled"),
 		MaxSessions:   viper.GetInt("bastion.max_sessions"),
 		SessionTimeout: viper.GetInt("bastion.session_timeout"),
 		DefaultSSHPort: viper.GetInt("bastion.default_ssh_port"),
+		ScriptDir:     strings.TrimSpace(viper.GetString("bastion.script_dir")),
 	}
 }
 

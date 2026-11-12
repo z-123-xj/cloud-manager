@@ -65,6 +65,17 @@
 
       const totalPages = computed(() => Math.ceil(total.value / size.value) || 1);
 
+      // 「实例ID/名称」列排序：'' 默认（更新时间倒序）→ 升序 → 降序 → 回到默认，走服务端分页
+      const nameSortDir = ref('');
+      const nameSortIcon = computed(() =>
+        nameSortDir.value === 'asc' ? '▲' : (nameSortDir.value === 'desc' ? '▼' : '⇅'));
+      function toggleNameSort() {
+        nameSortDir.value = nameSortDir.value === '' ? 'asc' : (nameSortDir.value === 'asc' ? 'desc' : '');
+        page.value = 1;
+        pageInput.value = 1;
+        fetchList();
+      }
+
       const filteredPlatforms = computed(() => {
         const kw = navDirKeyword.value.trim().toLowerCase();
         if (!kw) return platformList.value;
@@ -111,6 +122,10 @@
           if (filters.platform) params.append('platform', filters.platform);
           if (filters.account) params.append('account_name', filters.account);
           if (filters.region) params.append('region_name', filters.region);
+          if (nameSortDir.value) {
+            params.append('sort_by', 'name');
+            params.append('sort_order', nameSortDir.value);
+          }
 
           const res = await authFetch('/api/ecs?' + params.toString());
           const json = await res.json();
@@ -490,6 +505,7 @@
         ecsColumns: ECS_COLUMNS, tableCssVars, hiddenColClasses, visibleColCount,
         isColVisible, colPickerOpen, colPickerPos, toggleColPicker,
         toggleCol, showAllCols, resetColPrefs, startResize,
+        nameSortDir, nameSortIcon, toggleNameSort,
         connectVisible, connectLoading, connectAsset, connectNetwork,
         connectCredId, connectCredList, connectCredDrpOpen,
         credLabel, closeConnect, connect, doConnect,

@@ -187,6 +187,7 @@
                     <li><a class="submenu-link" :class="{ active: currentTab === 'bastionGroups' }" :href="'/bastion/groups'" @click="navigate($event, '/bastion/groups')" v-if="isAdmin" title="用户组"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></span>用户组</a></li>
                     <li><a class="submenu-link" :class="{ active: currentTab === 'bastionCredentials' }" :href="'/bastion/credentials'" @click="navigate($event, '/bastion/credentials')" v-if="isAdmin" title="凭证"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></span>凭证</a></li>
                     <li><a class="submenu-link" :href="'/assets/pages/batch-exec.html'" @click.prevent="goTab('/assets/pages/batch-exec.html')" title="批量执行"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>批量执行</a></li>
+                    <li><a class="submenu-link" :href="'/assets/pages/scripts.html'" @click.prevent="goTab('/assets/pages/scripts.html')" title="脚本库"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg></span>脚本库</a></li>
                     <li><a class="submenu-link" href="/assets/pages/logs.html?v=20261108i" title="日志排查"><span class="sub-icon"><svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg></span>日志排查</a></li>
                   </ul>
                 </li>
@@ -2284,6 +2285,6 @@
   <div v-if="bastionNetDrpOpen||bastionCredDrpOpen||bastionConnectCredDrpOpen" class="drp-backdrop" @click="bastionNetDrpOpen=false;bastionCredDrpOpen=false;bastionConnectCredDrpOpen=false" @wheel.prevent></div>
   </div>
 
-  <script src="/assets/js/app.js?v=20261111a"></script>
+  <script src="/assets/js/app.js?v=20261112a"></script>
 </body>
 </html>
