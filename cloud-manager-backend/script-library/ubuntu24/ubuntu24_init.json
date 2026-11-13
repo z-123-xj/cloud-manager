@@ -1,0 +1,49 @@
+{
+  "name": "服务器初始化",
+  "category": "ubuntu24",
+  "description": "",
+  "shell": "bash",
+  "timeout_sec": 300,
+  "concurrency": 5,
+  "params": [
+    {
+      "key": "SSH_PORT",
+      "label": "ssh端口",
+      "type": "number",
+      "default": "6688",
+      "required": true,
+      "options": null,
+      "regex": "",
+      "min": 1,
+      "max": 65535
+    },
+    {
+      "key": "PermitRootLogin",
+      "label": "允许 root 用密码或密钥直接登录",
+      "type": "select",
+      "default": "yes",
+      "required": true,
+      "options": [
+        "yes",
+        "no"
+      ],
+      "regex": "",
+      "min": null,
+      "max": null
+    },
+    {
+      "key": "PasswordAuthentication",
+      "label": "允许所有用户通过密码登录 SSH",
+      "type": "select",
+      "default": "yes",
+      "required": true,
+      "options": [
+        "yes",
+        "no"
+      ],
+      "regex": "",
+      "min": null,
+      "max": null
+    }
+  ]
+}

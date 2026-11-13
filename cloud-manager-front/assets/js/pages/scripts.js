@@ -37,6 +37,27 @@
 
       const categories = computed(() =>
         Array.from(new Set(items.value.map(s => s.category))).sort());
+      // 编辑弹窗里可选的已有分类（根目录脚本显示为「未分类」，不作为可选目录）
+      const categoryOptions = computed(() =>
+        categories.value.filter(c => c && c !== '未分类'));
+      const catComboOpen = ref(false);
+      const catComboEl = ref(null);
+      const uploadCatOpen = ref(false);
+      const uploadCatComboEl = ref(null);
+      function pickCategory(c) {
+        editor.category = c;
+        catComboOpen.value = false;
+      }
+      function pickUploadCategory(c) {
+        uploadCategory.value = c;
+        uploadCatOpen.value = false;
+      }
+      function onCatOutside(e) {
+        const a = catComboEl.value;
+        const b = uploadCatComboEl.value;
+        if (a && !a.contains(e.target)) catComboOpen.value = false;
+        if (b && !b.contains(e.target)) uploadCatOpen.value = false;
+      }
       const filtered = computed(() => {
         const kw = keyword.value.trim().toLowerCase();
         return items.value.filter(s => {
@@ -119,9 +140,11 @@
       onMounted(() => {
         load();
         nextTick(followEditorResize);
+        window.addEventListener('mousedown', onCatOutside);
       });
       onUnmounted(() => {
         if (editorResizeObserver) { editorResizeObserver.disconnect(); editorResizeObserver = null; }
+        window.removeEventListener('mousedown', onCatOutside);
       });
 
       // 从批量执行页等站内页面进来时回上一页；直接打开 / 外部来源则回工作台。
@@ -148,12 +171,14 @@
         if (editorDirty.value && !window.confirm('脚本还没保存，确定关闭吗？未保存的内容会丢失。')) return;
         editorOpen.value = false;
         editorSnapshot.value = '';
+        catComboOpen.value = false;
       }
 
       function closeUpload() {
         if (uploading.value) return;
         if (uploadFile.value && !window.confirm('已选择文件但还没上传，确定关闭吗？')) return;
         uploadOpen.value = false;
+        uploadCatOpen.value = false;
       }
 
       // 记录正文框最近一次光标位置：点参数 chip 会让 textarea 失焦，插入时要按这个位置
@@ -450,6 +475,8 @@
         loading, dir, items, keyword, categoryFilter, categories, filtered,
         editorOpen, editing, saving, editor, editorDirty, editorTextarea,
         placeholders, insertPlaceholder, rememberCaret, onEditorInput, addParam,
+        categoryOptions, catComboOpen, catComboEl, pickCategory,
+        uploadCatOpen, uploadCatComboEl, pickUploadCategory,
         openNew, openEdit, closeEditor, closeUpload, save,
         uploadOpen, uploading, uploadFile, uploadCategory, onFileChange, openUpload, upload,
         previewOpen, previewTitle, previewContent, preview,

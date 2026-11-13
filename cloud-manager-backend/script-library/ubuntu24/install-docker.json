@@ -1,0 +1,21 @@
+{
+  "name": "安装docker",
+  "category": "ubuntu24",
+  "description": "",
+  "shell": "bash",
+  "timeout_sec": 300,
+  "concurrency": 5,
+  "params": [
+    {
+      "key": "docker_data",
+      "label": "docker数据存储目录",
+      "type": "text",
+      "default": "/data/docker_data",
+      "required": true,
+      "options": null,
+      "regex": "",
+      "min": null,
+      "max": null
+    }
+  ]
+}

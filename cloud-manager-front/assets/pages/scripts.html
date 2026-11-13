@@ -72,6 +72,16 @@
     .sl-field > label { font-weight: 500; }
     .sl-field-full { grid-column: 1 / -1; }
     .sl-field-help { font-size: 11px; color: #94a3b8; }
+    /* 分类目录：可选已有分类，也可直接输入新分类 */
+    .sl-cat-combo { position: relative; }
+    .sl-cat-combo > .form-control { padding-right: 34px; }
+    .sl-cat-toggle { position: absolute; right: 4px; top: 4px; width: 28px; height: 28px; border: 0; background: transparent; color: #7a8fa3; cursor: pointer; border-radius: 6px; }
+    .sl-cat-toggle:hover { background: #eef5fc; color: #2d6a9f; }
+    .sl-cat-menu { position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 4px); max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #dce4ee; border-radius: 9px; box-shadow: 0 12px 28px -10px rgba(15,46,74,.28); padding: 5px; }
+    .sl-cat-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 10px; border-radius: 7px; font-size: 12.5px; color: #1e293b; cursor: pointer; }
+    .sl-cat-item:hover { background: #eef5fc; color: #2d6a9f; }
+    .sl-cat-count { font-size: 11px; color: #94a3b8; white-space: nowrap; }
+    .sl-cat-empty { padding: 12px; text-align: center; font-size: 12px; color: #94a3b8; }
     /* 参数卡片 */
     .sl-param-card { border: 1px solid #e6edf5; border-radius: 9px; background: #f8fafc; padding: 12px; margin-bottom: 10px; }
     .sl-param-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -189,8 +199,22 @@
                 </div>
                 <div class="sl-field">
                   <label>分类目录（可选，一层）</label>
-                  <input class="form-control" v-model="editor.category" placeholder="web">
-                  <span class="sl-field-help">留空即放在脚本库根目录</span>
+                  <div class="sl-cat-combo" ref="catComboEl">
+                    <input class="form-control" v-model="editor.category" placeholder="选择已有分类，或输入新分类"
+                           @focus="catComboOpen = true" @input="catComboOpen = true"
+                           @keydown.esc="catComboOpen = false">
+                    <button type="button" class="sl-cat-toggle" @click="catComboOpen = !catComboOpen" title="选择已有分类">
+                      <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="sl-cat-menu" v-if="catComboOpen">
+                      <div class="sl-cat-item" v-for="c in categoryOptions" :key="c" @click="pickCategory(c)">
+                        <span>{{ c }}</span>
+                        <span class="sl-cat-count">{{ items.filter(s => s.category === c).length }} 个脚本</span>
+                      </div>
+                      <div class="sl-cat-empty" v-if="!categoryOptions.length">暂无已有分类，直接输入即可新建</div>
+                    </div>
+                  </div>
+                  <span class="sl-field-help">选已有分类或直接输入新分类；改分类会搬移脚本并清理空目录</span>
                 </div>
                 <div class="sl-field">
                   <label>显示名称</label>
@@ -314,7 +338,21 @@
             <div class="sl-hint">上传后脚本会立即出现在库里。需要参数时，在列表里点「编辑」即可补参数定义，不用去服务器改文件。</div>
             <div class="sl-field" style="margin-bottom:12px">
               <label>分类目录（可选）</label>
-              <input class="form-control" v-model="uploadCategory" placeholder="web">
+              <div class="sl-cat-combo" ref="uploadCatComboEl">
+                <input class="form-control" v-model="uploadCategory" placeholder="选择已有分类，或输入新分类"
+                       @focus="uploadCatOpen = true" @input="uploadCatOpen = true"
+                       @keydown.esc="uploadCatOpen = false">
+                <button type="button" class="sl-cat-toggle" @click="uploadCatOpen = !uploadCatOpen" title="选择已有分类">
+                  <i class="fas fa-chevron-down"></i>
+                </button>
+                <div class="sl-cat-menu" v-if="uploadCatOpen">
+                  <div class="sl-cat-item" v-for="c in categoryOptions" :key="c" @click="pickUploadCategory(c)">
+                    <span>{{ c }}</span>
+                    <span class="sl-cat-count">{{ items.filter(s => s.category === c).length }} 个脚本</span>
+                  </div>
+                  <div class="sl-cat-empty" v-if="!categoryOptions.length">暂无已有分类，直接输入即可新建</div>
+                </div>
+              </div>
             </div>
             <div class="sl-field">
               <label>选择文件</label>
@@ -342,6 +380,6 @@
   </script>
 
   <script src="/assets/js/core.js?v=20261112a"></script>
-  <script src="/assets/js/pages/scripts.js?v=20261112h"></script>
+  <script src="/assets/js/pages/scripts.js?v=20261112i"></script>
 </body>
 </html>

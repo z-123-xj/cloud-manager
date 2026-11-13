@@ -41,7 +41,9 @@ bastion:
   batch_max_output_bytes: 16384  # 单台 stdout/stderr 各自留存的最大字节数
   batch_max_assets: 200          # 单任务最多可选主机数
   # 脚本库目录：放 .sh 脚本，可配同名 .json 定义参数；服务器上直接丢文件进去会自动发现。
-  # 生产务必用绝对路径，且不要放在代码目录内（避免升级后端时被覆盖）；目录需可读写并纳入备份。
+  # 脚本可随代码仓库发布：把该目录放在仓库内（默认值 script-library 相对后端工作目录），
+  # 页面新建/上传的脚本会直接写到这里，由你手动 git commit/push；线上 git pull 后即可扫描使用。
+  # 生产建议用绝对路径（指向部署后的仓库目录），目录需可读写；若放在仓库外请单独备份。
   script_dir: "/data/devops/cloud-manager/script-library"
 
 # 日志配置
