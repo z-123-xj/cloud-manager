@@ -216,7 +216,7 @@ func DeleteGroupCredentials(c *gin.Context) {
 // ==================== 用户可见资产列表 ====================
 
 // GetUserAssets GET /api/bastion/assets
-// 返回当前用户所在组被授权访问的 ECS 实例
+// 管理员返回全部 ECS；普通用户返回所在用户组被授权访问的 ECS。
 func GetUserAssets(c *gin.Context) {
 	uidStr, _ := c.Get("user_id")
 	uid, _ := strconv.Atoi(uidStr.(string))
@@ -225,14 +225,9 @@ func GetUserAssets(c *gin.Context) {
 	var ecsList []models.EcsInstance
 
 	if role == "admin" {
-		// 管理员看所有已授权给任意用户组的ECS
-		var ecsIDs []uint64
-		models.DB.Model(&models.BastionGroupAsset{}).Distinct("ecs_id").Pluck("ecs_id", &ecsIDs)
-		if len(ecsIDs) == 0 {
-			c.JSON(http.StatusOK, gin.H{"code": 0, "data": []interface{}{}})
-			return
-		}
-		models.DB.Where("id IN ?", ecsIDs).Order("id DESC").Find(&ecsList)
+		// 管理员可连接全部资产，不依赖用户组授权关系。
+		// 口径与 resolveSSHSpec / getEcsConnectableSet / GetAssetCredentials 保持一致。
+		models.DB.Order("id DESC").Find(&ecsList)
 	} else {
 		// 根据用户组查询授权的ECS
 		var groupIDs []uint
@@ -254,7 +249,8 @@ func GetUserAssets(c *gin.Context) {
 		models.EcsInstance
 		SourceLabel string `json:"source_label"`
 	}
-	var result []EcsWithSource
+	// 空结果也要返回 []，否则管理员库里一台 ECS 都没有时前端会拿到 null
+	result := make([]EcsWithSource, 0, len(ecsList))
 	for _, e := range ecsList {
 		label := "同步"
 		if e.Source == "manual" {

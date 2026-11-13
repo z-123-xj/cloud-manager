@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const { ref, reactive, computed, onMounted, onUnmounted } = CloudCore.Vue;
+  const { ref, reactive, computed, onMounted, onUnmounted, nextTick } = CloudCore.Vue;
   const { authFetch, showToast, logout, formatDateTime, copyText } = CloudCore;
 
   const STATUS_LABELS = {
@@ -48,6 +48,22 @@
       const currentScript = computed(() =>
         scripts.value.find(s => s.id === selectedScriptId.value) || null);
       const scriptParams = computed(() => (currentScript.value && currentScript.value.params) || []);
+
+      // 脚本选择：带实时搜索的下拉，输入即按名称 / 分类 / 文件名 / 说明过滤
+      const scriptComboOpen = ref(false);
+      const scriptComboEl = ref(null);
+      const scriptSearch = ref('');
+      const scriptHlIndex = ref(0);
+      const scriptComboPlaceholder = computed(() => {
+        const s = currentScript.value;
+        return s ? (s.category + ' / ' + s.name + '（' + s.id + '）') : '输入名称 / 分类 / 文件名搜索脚本…';
+      });
+      const filteredScripts = computed(() => {
+        const kw = scriptSearch.value.trim().toLowerCase();
+        if (!kw) return scripts.value;
+        return scripts.value.filter(s =>
+          [s.name, s.id, s.category, s.description].join(' ').toLowerCase().includes(kw));
+      });
 
       const submitting = ref(false);
       const lastError = ref('');
@@ -215,6 +231,7 @@
           selectedScriptId.value = id;
           onScriptChange();
         }
+        nextTick(alignNativeForm);
       }
 
       function onScriptChange() {
@@ -227,6 +244,44 @@
         if (s.timeout_sec) form.timeout_sec = s.timeout_sec;
         if (s.concurrency) form.concurrency = s.concurrency;
         if (!form.title.trim()) form.title = s.name || '';
+      }
+
+      function openScriptCombo() {
+        // focus 与 click 都会调到；已展开时别重复清空关键字
+        if (scriptComboOpen.value) return;
+        scriptSearch.value = '';
+        scriptComboOpen.value = true;
+        const i = filteredScripts.value.findIndex(s => s.id === selectedScriptId.value);
+        scriptHlIndex.value = i < 0 ? 0 : i;
+      }
+      function closeScriptCombo() {
+        scriptComboOpen.value = false;
+        scriptSearch.value = '';
+      }
+      function moveScriptHl(delta) {
+        if (!scriptComboOpen.value) { openScriptCombo(); return; }
+        const n = filteredScripts.value.length;
+        if (!n) return;
+        scriptHlIndex.value = (scriptHlIndex.value + delta + n) % n;
+      }
+      function pickScript(s) {
+        selectedScriptId.value = s.id;
+        onScriptChange();
+        closeScriptCombo();
+      }
+      function pickHighlightedScript() {
+        if (!scriptComboOpen.value) { openScriptCombo(); return; }
+        const s = filteredScripts.value[scriptHlIndex.value];
+        if (s) pickScript(s);
+      }
+      function clearScriptSelection() {
+        selectedScriptId.value = '';
+        onScriptChange();
+        closeScriptCombo();
+      }
+      function onComboOutside(e) {
+        const el = scriptComboEl.value;
+        if (el && !el.contains(e.target)) closeScriptCombo();
       }
 
       async function previewScript() {
@@ -452,17 +507,80 @@
         selectedIds.value = Array.from(ids);
       }
 
+      // history.back() 回来时，浏览器会还原原生表单控件（radio/select/textarea）：
+      // bfcache 下 Vue 状态还在但 DOM 被改写；重新加载时 Vue 状态整个重置，DOM 却仍是旧值。
+      // 统一处理：离开前存一份快照，回来后恢复状态并把原生控件对齐到 Vue 状态。
+      const FORM_STATE_KEY = 'cloud_batch_exec_state';
+
+      function saveFormState() {
+        try {
+          sessionStorage.setItem(FORM_STATE_KEY, JSON.stringify({
+            mode: mode.value,
+            selectedScriptId: selectedScriptId.value,
+            scriptParamValues: { ...scriptParamValues },
+            form: { ...form },
+            selectedIds: selectedIds.value,
+          }));
+        } catch (e) { /* 隐私模式或配额不足时忽略 */ }
+      }
+
+      function restoreFormState() {
+        try {
+          const raw = sessionStorage.getItem(FORM_STATE_KEY);
+          const s = raw ? JSON.parse(raw) : null;
+          return s && typeof s === 'object' ? s : null;
+        } catch (e) { return null; }
+      }
+
+      function alignNativeForm() {
+        document.querySelectorAll('input[type="radio"][name="bx-script-source"]').forEach(el => {
+          el.checked = el.value === mode.value;
+        });
+        // 搜索框由 scriptSearch 管理，别让浏览器把上次的搜索词恢复回来
+        const sel = document.querySelector('.bx-script-select');
+        if (sel) sel.value = scriptSearch.value;
+      }
+
+      function onPageShow() {
+        // 普通返回也会恢复表单，不能只看 bfcache 的 persisted；
+        // 延迟到下一个宏任务，确保晚于浏览器的表单状态恢复。
+        scriptComboOpen.value = false;
+        nextTick(alignNativeForm);
+        setTimeout(alignNativeForm, 0);
+      }
+      window.addEventListener('pagehide', saveFormState);
+      window.addEventListener('pageshow', onPageShow);
+      window.addEventListener('mousedown', onComboOutside);
+
       onMounted(() => {
+        const pre = new URLSearchParams(window.location.search).get('script');
+        // 带 ?script= 的「去部署」按新脚本预选，不继承旧表单；其余情况恢复上次状态
+        const saved = pre ? null : restoreFormState();
+        if (saved) {
+          if (saved.mode === 'manual' || saved.mode === 'library') mode.value = saved.mode;
+          if (Array.isArray(saved.selectedIds)) selectedIds.value = saved.selectedIds;
+          if (saved.form && typeof saved.form === 'object') Object.assign(form, saved.form);
+          if (saved.selectedScriptId) selectedScriptId.value = saved.selectedScriptId;
+        }
         fetchOptions();
         fetchAssets();
         fetchCredentials();
         loadHistory();
-        // 脚本库「去部署」带 ?script=<id> 进来时自动切到脚本库模式并预选
-        const pre = new URLSearchParams(window.location.search).get('script');
         if (pre) mode.value = 'library';
-        fetchScripts(pre);
+        fetchScripts(pre || (saved && saved.selectedScriptId) || '').then(() => {
+          // fetchScripts 的 onScriptChange 会把参数重置成默认值，这里覆盖回离开前填的值
+          if (saved && saved.scriptParamValues && typeof saved.scriptParamValues === 'object') {
+            Object.keys(scriptParamValues).forEach(k => delete scriptParamValues[k]);
+            Object.assign(scriptParamValues, saved.scriptParamValues);
+          }
+        });
       });
-      onUnmounted(stopPolling);
+      onUnmounted(() => {
+        stopPolling();
+        window.removeEventListener('pagehide', saveFormState);
+        window.removeEventListener('pageshow', onPageShow);
+        window.removeEventListener('mousedown', onComboOutside);
+      });
 
       return {
         assets, assetsLoading, assetKeyword, accountFilter, accountOptions,
@@ -472,6 +590,9 @@
         submitting, lastError, confirmVisible, confirmRun, doRun, cancelTask,
         mode, scripts, selectedScriptId, scriptParamValues, scriptPreview,
         currentScript, scriptParams, fetchScripts, onScriptChange, previewScript, retryFailed,
+        scriptComboOpen, scriptComboEl, scriptSearch, scriptHlIndex,
+        scriptComboPlaceholder, filteredScripts, openScriptCombo, closeScriptCombo,
+        moveScriptHl, pickScript, pickHighlightedScript, clearScriptSelection,
         activeTask, results, progressPct,
         history, historyLoading, historyTotal, historyPage, historyTotalPages,
         loadHistory, goHistoryPage, openHistory, applyHistory,

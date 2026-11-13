@@ -16,6 +16,33 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    /* 用户组「授权管理」弹窗：加大尺寸、两个表格平分高度、滚动时表头固定 */
+    .bga-modal {
+      width: min(1120px, 94vw); max-width: 94vw;
+      height: min(860px, 92vh); max-height: 92vh;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .bga-modal .modal-header { flex: 0 0 auto; padding: 16px 24px; }
+    .bga-modal .modal-body {
+      flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 18px 24px 20px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .bga-tabs { flex: 0 0 auto; }
+    .bga-section { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; margin-bottom: 0; }
+    .bga-section > h4 { flex: 0 0 auto; }
+    .bga-table { flex: 1 1 auto; min-height: 120px; max-height: none; overflow: auto; }
+    .bga-table thead th {
+      position: sticky; top: 0; z-index: 3;
+      background: #f5f8fc !important;
+      box-shadow: 0 1px 0 rgba(15, 46, 74, .08);
+    }
+    .bga-foot { flex: 0 0 auto; }
+    @media (max-height: 760px) {
+      .bga-modal { height: 94vh; max-height: 94vh; }
+      .bga-table { min-height: 100px; }
+    }
+  </style>
 </head>
 <body>
   <div id="app">
@@ -2053,11 +2080,11 @@
 
       <!-- 堡垒机用户组资产授权弹窗 -->
       <div class="modal-overlay" v-if="bastionGroupAssetModalVisible">
-        <div class="modal" style="max-width:850px">
+        <div class="modal bga-modal">
           <div class="modal-header"><h2>授权管理 - {{ bastionGroupAssetName }}</h2><button class="btn-close" @click="bastionGroupAssetModalVisible = false">&times;</button></div>
-          <div class="modal-body">
+          <div class="modal-body bga-body">
             <!-- Tab切换 -->
-            <div style="display:flex; gap:0; margin-bottom:16px; border-bottom:2px solid #e8eaed;">
+            <div class="bga-tabs" style="display:flex; gap:0; border-bottom:2px solid #e8eaed;">
               <button class="btn btn-text" @click="bastionGroupAssetTab = 'assets'" :style="{ fontWeight: bastionGroupAssetTab === 'assets' ? '600' : '400', color: bastionGroupAssetTab === 'assets' ? '#1a73e8' : '#666', borderBottom: bastionGroupAssetTab === 'assets' ? '2px solid #1a73e8' : '2px solid transparent', marginBottom:'-2px', borderRadius:0, padding:'8px 20px' }">🖥 资产授权</button>
               <button class="btn btn-text" @click="bastionGroupAssetTab = 'credentials'" :style="{ fontWeight: bastionGroupAssetTab === 'credentials' ? '600' : '400', color: bastionGroupAssetTab === 'credentials' ? '#1a73e8' : '#666', borderBottom: bastionGroupAssetTab === 'credentials' ? '2px solid #1a73e8' : '2px solid transparent', marginBottom:'-2px', borderRadius:0, padding:'8px 20px' }">🔑 凭证授权</button>
             </div>
@@ -2065,12 +2092,12 @@
             <!-- 资产授权 Tab -->
             <template v-if="bastionGroupAssetTab === 'assets'">
               <!-- 已授权资产列表 -->
-              <div style="margin-bottom:16px">
+              <div class="bga-section">
                 <h4 style="margin:0 0 8px 0;display:flex;justify-content:space-between;align-items:center">
                   <span>已授权资产</span>
                   <button v-if="bastionGroupAssetRemoveIds.length > 0" class="btn btn-danger btn-xs" @click="deleteBastionGroupAssetsBatch">批量移除({{ bastionGroupAssetRemoveIds.length }})</button>
                 </h4>
-                <div class="table-wrapper" style="max-height:200px;overflow-y:auto">
+                <div class="table-wrapper bga-table">
                   <table class="table"><thead><tr><th style="width:36px"><input type="checkbox" @change="onToggleAllBastionAssets" :checked="bastionGroupAssetRemoveIds.length && bastionGroupAssetRemoveIds.length === bastionGroupAssetList.length" /></th><th>实例名称</th><th>公网IP</th><th>弹性IP</th><th>内网IP</th><th>来源</th></tr></thead>
                   <tbody>
                     <tr v-if="bastionGroupAssetList.length === 0"><td colspan="6" class="text-center py-20 text-gray">暂无授权资产</td></tr>
@@ -2086,9 +2113,9 @@
                 </div>
               </div>
               <!-- 添加资产授权 -->
-              <div>
+              <div class="bga-section">
                 <h4 style="margin:0 0 8px 0">添加资产授权</h4>
-                <div class="table-wrapper" style="max-height:200px;overflow-y:auto;margin-bottom:8px">
+                <div class="table-wrapper bga-table">
                   <table class="table"><thead><tr><th style="width:36px"><input type="checkbox" @change="onToggleAllBastionEcs" :checked="bastionGroupAssetNewIds.length && bastionGroupAssetNewIds.length === filteredAvailableEcsList.length" /></th><th>实例名称</th><th>公网IP</th><th>内网IP</th></tr></thead>
                   <tbody>
                     <tr v-if="filteredAvailableEcsList.length === 0"><td colspan="4" class="text-center py-20 text-gray">没有可授权的ECS</td></tr>
@@ -2100,7 +2127,7 @@
                     </tr>
                   </tbody></table>
                 </div>
-                <div style="text-align:right">
+                <div class="bga-foot" style="text-align:right">
                   <button class="btn btn-primary btn-sm" @click="addBastionGroupAsset" :disabled="bastionGroupAssetNewIds.length === 0">授权({{ bastionGroupAssetNewIds.length }})</button>
                 </div>
               </div>
@@ -2109,12 +2136,12 @@
             <!-- 凭证授权 Tab -->
             <template v-if="bastionGroupAssetTab === 'credentials'">
               <!-- 已授权凭证列表 -->
-              <div style="margin-bottom:16px">
+              <div class="bga-section">
                 <h4 style="margin:0 0 8px 0;display:flex;justify-content:space-between;align-items:center">
                   <span>已授权凭证</span>
                   <button v-if="bastionGroupCredRemoveIds.length > 0" class="btn btn-danger btn-xs" @click="deleteBastionGroupCredsBatch">批量移除({{ bastionGroupCredRemoveIds.length }})</button>
                 </h4>
-                <div class="table-wrapper" style="max-height:200px;overflow-y:auto">
+                <div class="table-wrapper bga-table">
                   <table class="table"><thead><tr><th style="width:36px"><input type="checkbox" @change="onToggleAllBastionCreds" :checked="bastionGroupCredRemoveIds.length && bastionGroupCredRemoveIds.length === bastionGroupCredList.length" /></th><th>凭证名称</th><th>用户名</th><th>认证方式</th></tr></thead>
                   <tbody>
                     <tr v-if="bastionGroupCredList.length === 0"><td colspan="4" class="text-center py-20 text-gray">暂无授权凭证</td></tr>
@@ -2128,9 +2155,9 @@
                 </div>
               </div>
               <!-- 添加凭证授权 -->
-              <div>
+              <div class="bga-section">
                 <h4 style="margin:0 0 8px 0">添加凭证授权</h4>
-                <div class="table-wrapper" style="max-height:200px;overflow-y:auto;margin-bottom:8px">
+                <div class="table-wrapper bga-table">
                   <table class="table"><thead><tr><th style="width:36px"><input type="checkbox" @change="onToggleAllAvailableCreds" :checked="bastionGroupCredNewIds.length && bastionGroupCredNewIds.length === filteredAvailableCreds.length" /></th><th>凭证名称</th><th>用户名</th><th>认证方式</th></tr></thead>
                   <tbody>
                     <tr v-if="filteredAvailableCreds.length === 0"><td colspan="4" class="text-center py-20 text-gray">所有凭证已授权</td></tr>
@@ -2142,7 +2169,7 @@
                     </tr>
                   </tbody></table>
                 </div>
-                <div style="text-align:right">
+                <div class="bga-foot" style="text-align:right">
                   <button class="btn btn-primary btn-sm" @click="addBastionGroupCred" :disabled="bastionGroupCredNewIds.length === 0">授权({{ bastionGroupCredNewIds.length }})</button>
                 </div>
               </div>

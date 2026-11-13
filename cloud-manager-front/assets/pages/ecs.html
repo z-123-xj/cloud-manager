@@ -238,12 +238,12 @@
             <label class="bastion-section-label">网络类型</label>
             <div style="display:flex;flex-direction:column;gap:10px">
               <label class="bastion-ip-card" :class="{ active: connectNetwork === 'public' }" v-if="connectAsset.public_ip">
-                <input type="radio" v-model="connectNetwork" value="public" />
+                <input type="radio" name="connect-network" v-model="connectNetwork" value="public" />
                 <div class="bastion-ip-card-tag">公网</div>
                 <div class="bastion-ip-card-addr">{{ connectAsset.public_ip }}<span class="conn-port">:{{ connectAsset.port || 22 }}</span></div>
               </label>
               <label class="bastion-ip-card" :class="{ active: connectNetwork === 'private' }" v-if="connectAsset.private_ip">
-                <input type="radio" v-model="connectNetwork" value="private" />
+                <input type="radio" name="connect-network" v-model="connectNetwork" value="private" />
                 <div class="bastion-ip-card-tag">内网</div>
                 <div class="bastion-ip-card-addr">{{ connectAsset.private_ip }}<span class="conn-port">:{{ connectAsset.port || 22 }}</span></div>
               </label>

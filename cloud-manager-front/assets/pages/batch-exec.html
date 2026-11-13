@@ -90,6 +90,7 @@
     .bx-control::placeholder { color: #a0b5c9; font-size: 0.85rem; }
     .bx-control:hover { background: rgba(255, 255, 255, 0.9); border-color: rgba(45, 106, 159, 0.2); }
     .bx-control:focus { background: #fff; border-color: #2d6a9f; box-shadow: 0 0 0 4px rgba(45, 106, 159, 0.08); }
+    .bx-control:disabled { background: rgba(240, 245, 250, .85); color: #7a8fa3; cursor: not-allowed; }
     select.bx-control {
       appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a8fa3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
@@ -97,6 +98,21 @@
       background-size: 1rem; padding-right: 2.5rem;
     }
     textarea.bx-control { resize: vertical; min-height: 130px; line-height: 1.6; font-family: 'Inter', monospace; }
+    /* ---- 可搜索的脚本选择下拉 ---- */
+    .bx-combo { position: relative; }
+    .bx-combo-input { position: relative; }
+    .bx-combo-input .bx-control { padding-left: 2.2rem; padding-right: 4.2rem; }
+    .bx-combo-icon { position: absolute; left: .9rem; top: 50%; transform: translateY(-50%); color: #9db0c3; font-size: .85rem; pointer-events: none; }
+    .bx-combo-arrow { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: #7a8fa3; font-size: .75rem; pointer-events: none; }
+    .bx-combo-clear { position: absolute; right: 2.3rem; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: #94a3b8; font-size: 1.15rem; line-height: 1; cursor: pointer; padding: 2px 4px; }
+    .bx-combo-clear:hover { color: #d03050; }
+    .bx-combo-menu { position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 6px); max-height: 280px; overflow-y: auto; background: #fff; border: 1px solid rgba(45,106,159,.18); border-radius: 14px; box-shadow: 0 16px 36px -12px rgba(11,43,68,.28); padding: 6px; }
+    .bx-combo-item { padding: 8px 12px; border-radius: 10px; cursor: pointer; }
+    .bx-combo-item.hl { background: #eef5fc; }
+    .bx-combo-item.picked { background: #e3f0fb; box-shadow: inset 2px 0 0 #2d6a9f; }
+    .bx-combo-item-main { font-size: .88rem; font-weight: 600; color: #1e3a5f; }
+    .bx-combo-item-sub { font-size: .75rem; color: #94a3b8; font-family: monospace; margin-top: 2px; }
+    .bx-combo-empty { padding: 14px; text-align: center; font-size: .82rem; color: #94a3b8; }
     .bx-divider {
       grid-column: span 12; height: 1px;
       background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.06), transparent);
@@ -242,8 +258,10 @@
               </div>
 
               <div class="bx-field bx-col-4">
-                <label><i class="fas fa-code"></i> 解释器</label>
-                <select class="bx-control" v-model="form.shell">
+                <label><i class="fas fa-code"></i> 解释器
+                  <span class="bx-hint" v-if="mode === 'library'">库模式由脚本决定</span>
+                </label>
+                <select class="bx-control" v-model="form.shell" :disabled="mode === 'library'">
                   <option v-for="s in options.shells" :key="s" :value="s">{{ s }}</option>
                 </select>
               </div>
@@ -326,20 +344,43 @@
               <!-- 脚本来源 -->
               <div class="bx-col-12" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13px;color:#475569">
                 <b>脚本来源：</b>
-                <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" value="manual" v-model="mode"> 手写脚本</label>
-                <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" value="library" v-model="mode"> 从脚本库选择</label>
+                <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="bx-script-source" value="manual" v-model="mode"> 手写脚本</label>
+                <label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="bx-script-source" value="library" v-model="mode"> 从脚本库选择</label>
                 <button class="bx-btn-ghost" v-if="mode === 'library'" @click="fetchScripts()"><i class="fas fa-rotate-right"></i> 刷新脚本</button>
                 <a href="/assets/pages/scripts.html" v-if="mode === 'library'" style="font-size:12.5px;color:#2d6a9f">管理脚本库 →</a>
               </div>
 
               <template v-if="mode === 'library'">
                 <div class="bx-field bx-col-12">
-                  <label><i class="fas fa-code"></i> 选择脚本 <span class="bx-hint">*</span></label>
-                  <select class="bx-control" v-model="selectedScriptId" @change="onScriptChange">
-                    <option value="">请选择脚本…</option>
-                    <option v-for="s in scripts" :key="s.id" :value="s.id">{{ s.category }} / {{ s.name }}（{{ s.id }}）</option>
-                  </select>
+                  <label><i class="fas fa-code"></i> 选择脚本 <span class="bx-hint">*</span>
+                    <span class="bx-hint" v-if="currentScript" style="color:#2d6a9f">已选：{{ currentScript.name }}（{{ currentScript.id }}）</span>
+                  </label>
+                  <div class="bx-combo" ref="scriptComboEl">
+                    <div class="bx-combo-input">
+                      <i class="fas fa-search bx-combo-icon"></i>
+                      <input class="bx-control bx-script-select" type="text" autocomplete="off"
+                             v-model="scriptSearch" :placeholder="scriptComboPlaceholder"
+                             @focus="openScriptCombo" @click="openScriptCombo" @input="scriptHlIndex = 0"
+                             @keydown.down.prevent="moveScriptHl(1)" @keydown.up.prevent="moveScriptHl(-1)"
+                             @keydown.enter.prevent="pickHighlightedScript" @keydown.esc="closeScriptCombo">
+                      <button type="button" class="bx-combo-clear" v-if="selectedScriptId"
+                              @mousedown.prevent="clearScriptSelection" title="清除选择">&times;</button>
+                      <i class="fas fa-chevron-down bx-combo-arrow"></i>
+                    </div>
+                    <div class="bx-combo-menu" v-if="scriptComboOpen">
+                      <div class="bx-combo-empty" v-if="!filteredScripts.length">
+                        没有匹配的脚本<span v-if="scriptSearch">（关键字「{{ scriptSearch }}」）</span>
+                      </div>
+                      <div class="bx-combo-item" v-for="(s, i) in filteredScripts" :key="s.id"
+                           :class="{ hl: i === scriptHlIndex, picked: s.id === selectedScriptId }"
+                           @mousedown.prevent="pickScript(s)" @mouseenter="scriptHlIndex = i">
+                        <div class="bx-combo-item-main">{{ s.category }} / {{ s.name }}</div>
+                        <div class="bx-combo-item-sub">{{ s.id }} · {{ s.shell }} · {{ s.params.length }} 参数</div>
+                      </div>
+                    </div>
+                  </div>
                   <span class="bx-hint" v-if="currentScript">{{ currentScript.description || '脚本正文由服务端读取并渲染，目标机不留脚本文件。' }}</span>
+                  <span class="bx-hint" v-else-if="!scripts.length">正在加载脚本库… 或点上方「刷新脚本」重新扫描。</span>
                 </div>
                 <div class="bx-field bx-col-12" v-if="scriptParams.length">
                   <label><i class="fas fa-sliders"></i> 脚本参数</label>
@@ -478,6 +519,6 @@
   </script>
 
   <script src="/assets/js/core.js?v=20261112a"></script>
-  <script src="/assets/js/pages/batch-exec.js?v=20261112a"></script>
+  <script src="/assets/js/pages/batch-exec.js?v=20261112f"></script>
 </body>
 </html>

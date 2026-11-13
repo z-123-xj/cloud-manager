@@ -151,6 +151,24 @@ func metaJSONPath(shPath string) string {
 	return strings.TrimSuffix(shPath, filepath.Ext(shPath)) + ".json"
 }
 
+// pruneEmptyCategory 脚本被改名/移走/删除后，清掉已经空了的那一层分类目录。
+// 只处理 root 下的一层子目录，且仅用 os.Remove 删空目录，不递归删文件。
+func pruneEmptyCategory(root, shPath string) {
+	cleanRoot := filepath.Clean(root)
+	dir := filepath.Clean(filepath.Dir(shPath))
+	if dir == cleanRoot || filepath.Dir(dir) != cleanRoot {
+		return
+	}
+	if !reSafeName.MatchString(filepath.Base(dir)) {
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) > 0 {
+		return
+	}
+	_ = os.Remove(dir)
+}
+
 // readMeta 读同名 .json；没有时用文件名/子目录名和默认值兜底，
 // 这样只丢一个 .sh 到目录里也能被自动发现并执行。
 func readMeta(root, shPath string) scriptMeta {
@@ -450,6 +468,7 @@ func PreviewScript(c *gin.Context) {
 
 type saveScriptReq struct {
 	ID          string        `json:"id"`
+	OldID       string        `json:"old_id"` // 编辑前的脚本 ID；与 ID 不同时表示改名/换分类
 	Content     string        `json:"content"`
 	Name        string        `json:"name"`
 	Category    string        `json:"category"`
@@ -467,11 +486,35 @@ func SaveScript(c *gin.Context) {
 		batchFail(c, "请求参数错误: %s", err.Error())
 		return
 	}
-	_, full, err := safeScriptPath(req.ID)
+	root, full, err := safeScriptPath(req.ID)
 	if err != nil {
 		batchFail(c, "%s", err.Error())
 		return
 	}
+
+	// 编辑时允许改文件名/分类：等价于重命名。先确认目标名没被占用，
+	// 写完新文件后再删旧文件与旧元数据，最后清掉空掉的分类目录。
+	renamed := false
+	var oldFull string
+	if req.OldID != "" {
+		_, old, err := safeScriptPath(req.OldID)
+		if err != nil {
+			batchFail(c, "原脚本路径非法: %s", err.Error())
+			return
+		}
+		if old != full {
+			if _, err := os.Stat(full); err == nil {
+				batchFail(c, "目标脚本 %s 已存在，请换个文件名或分类", req.ID)
+				return
+			} else if !os.IsNotExist(err) {
+				batchFail(c, "检查目标脚本失败: %v", err)
+				return
+			}
+			renamed = true
+			oldFull = old
+		}
+	}
+
 	content := normalizeScript(req.Content)
 	if strings.TrimSpace(content) == "" {
 		batchFail(c, "脚本内容不能为空")
@@ -511,7 +554,19 @@ func SaveScript(c *gin.Context) {
 		batchFail(c, "保存元数据失败: %v", err)
 		return
 	}
-	batchOK(c, gin.H{"id": req.ID})
+	warn := ""
+	if renamed {
+		if err := os.Remove(oldFull); err != nil && !os.IsNotExist(err) {
+			warn = fmt.Sprintf("新脚本已保存，但旧文件清理失败: %v", err)
+		}
+		_ = os.Remove(metaJSONPath(oldFull)) // 同名 .json，不存在时忽略
+		pruneEmptyCategory(root, oldFull)
+	}
+	data := gin.H{"id": req.ID, "renamed": renamed}
+	if warn != "" {
+		data["warn"] = warn
+	}
+	batchOK(c, data)
 }
 
 // UploadScript POST /api/bastion/scripts/upload —— multipart 上传 .sh（仅管理员）
@@ -567,7 +622,7 @@ func UploadScript(c *gin.Context) {
 
 // DeleteScript DELETE /api/bastion/scripts?id=xxx （仅管理员）
 func DeleteScript(c *gin.Context) {
-	_, full, err := safeScriptPath(c.Query("id"))
+	root, full, err := safeScriptPath(c.Query("id"))
 	if err != nil {
 		batchFail(c, "%s", err.Error())
 		return
@@ -577,5 +632,6 @@ func DeleteScript(c *gin.Context) {
 		return
 	}
 	os.Remove(metaJSONPath(full)) // 元数据一并清理，不存在时忽略
+	pruneEmptyCategory(root, full)
 	batchOK(c, gin.H{"id": c.Query("id")})
 }

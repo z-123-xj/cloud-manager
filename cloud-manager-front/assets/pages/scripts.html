@@ -13,7 +13,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
-    .sl-root { padding: 24px 28px 48px; max-width: 1400px; margin: 0 auto; }
+    .sl-root { padding: 20px 28px 48px; max-width: 1400px; margin: 0 auto; }
+    .sl-back-row { margin-bottom: 14px; }
+    .sl-back { display: inline-flex; align-items: center; gap: 6px; }
     .sl-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
     .sl-head h1 { font-size: 22px; margin: 0 0 6px; color: #1e3a5f; }
     .sl-sub { font-size: 13px; color: #64748b; line-height: 1.6; max-width: 760px; }
@@ -39,20 +41,60 @@
     .sl-card-time { font-size: 11px; color: #94a3b8; margin-bottom: 12px; }
     .sl-card-foot { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
     .sl-empty { padding: 48px 20px; text-align: center; color: #94a3b8; font-size: 13px; background: #fff; border: 1px dashed #dbe5ef; border-radius: 12px; line-height: 1.8; }
-    .sl-modal { width: min(900px, 94vw); max-height: 88vh; display: flex; flex-direction: column; }
-    .sl-modal .modal-body { overflow-y: auto; }
-    .sl-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .sl-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #475569; }
-    .sl-field input, .sl-field select, .sl-field textarea { font-size: 13px; }
+    /* 独立页没有全局 .form-control，这里补齐控件样式，避免 textarea 只显示默认 20 列宽 */
+    .sl-root .form-control {
+      width: 100%; height: 36px; padding: 0 11px; box-sizing: border-box;
+      border: 1px solid #dce4ee; border-radius: 8px; background: #fff;
+      font-size: 13px; color: #1e293b; outline: none;
+      transition: border-color .18s, box-shadow .18s;
+    }
+    .sl-root .form-control::placeholder { color: #a3b1c2; }
+    .sl-root .form-control:hover { border-color: #9db8d4; }
+    .sl-root .form-control:focus { border-color: #2d6a9f; box-shadow: 0 0 0 3px rgba(45,106,159,.1); }
+    .sl-root .form-control:disabled { background: #f4f7fb; color: #94a3b8; cursor: not-allowed; }
+    .sl-root textarea.form-control { height: auto; padding: 12px; }
+    .sl-root input[type="file"].form-control { padding: 5px 10px; }
+    /* 弹窗：头部/底部固定，中间内容滚动 */
+    .sl-modal { width: min(1040px, 94vw); max-height: 94vh; display: flex; flex-direction: column; overflow: hidden; }
+    .sl-modal .modal-header { flex: 0 0 auto; padding: 16px 22px; }
+    .sl-modal .modal-body { flex: 1 1 auto; overflow-y: auto; padding: 18px 22px 22px; }
+    .sl-modal-footer { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 22px; border-top: 1px solid #e6edf5; background: #fbfcfe; }
+    .sl-modal-footer .sl-save-tip { font-size: 12px; color: #94a3b8; }
+    /* 分区 */
+    .sl-block { border: 1px solid #e6edf5; border-radius: 10px; background: #fff; padding: 14px 16px 16px; margin-bottom: 14px; }
+    .sl-block:last-child { margin-bottom: 0; }
+    .sl-block-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .sl-block-title { font-size: 13.5px; font-weight: 600; color: #1e3a5f; display: inline-flex; align-items: center; gap: 7px; }
+    .sl-block-title i { color: #2d6a9f; }
+    .sl-block-desc { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+    .sl-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+    .sl-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; color: #475569; }
+    .sl-field > label { font-weight: 500; }
     .sl-field-full { grid-column: 1 / -1; }
+    .sl-field-help { font-size: 11px; color: #94a3b8; }
+    /* 参数卡片 */
+    .sl-param-card { border: 1px solid #e6edf5; border-radius: 9px; background: #f8fafc; padding: 12px; margin-bottom: 10px; }
+    .sl-param-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .sl-param-index { font-size: 12px; font-weight: 600; color: #2d6a9f; }
+    .sl-param-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; }
+    .sl-param-grid .sl-field { font-size: 11.5px; }
+    .sl-range { display: flex; gap: 6px; }
+    .sl-param-check { display: flex; align-items: center; gap: 6px; height: 36px; font-size: 12px; color: #475569; white-space: nowrap; }
+    .sl-param-check input { width: 14px; height: 14px; accent-color: #2d6a9f; }
+    .sl-empty-inline { border: 1px dashed #dbe5ef; border-radius: 8px; padding: 14px; text-align: center; font-size: 12px; color: #94a3b8; background: #fff; }
+    /* 代码编辑 / 预览 */
+    .sl-editor { min-height: 260px; resize: vertical; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 12.5px; line-height: 1.65; tab-size: 2; background: #0f172a; color: #e2e8f0; border-color: #1e293b; }
+    .sl-editor::placeholder { color: #64748b; }
+    .sl-editor:focus { border-color: #2d6a9f; box-shadow: 0 0 0 3px rgba(45,106,159,.18); }
+    .sl-ph-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; font-size: 12px; color: #64748b; }
+    .sl-ph { border: 1px solid #cbd9e8; background: #eef5fc; color: #2d6a9f; border-radius: 6px; padding: 3px 9px; font-family: monospace; font-size: 12px; cursor: pointer; }
+    .sl-ph:hover { background: #dbeaf8; border-color: #2d6a9f; }
+    .sl-editor-bar { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-size: 11.5px; color: #94a3b8; }
     .sl-code { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px; font-size: 12px; line-height: 1.6; max-height: 55vh; overflow: auto; white-space: pre-wrap; word-break: break-all; }
-    .sl-section-title { font-size: 13px; font-weight: 600; color: #1e3a5f; margin: 18px 0 8px; display: flex; align-items: center; justify-content: space-between; }
-    .sl-param-row { display: grid; grid-template-columns: 1.1fr 1.1fr .9fr 1fr 1.2fr 1fr auto auto; gap: 6px; align-items: center; background: #f8fafc; border: 1px solid #e6edf5; border-radius: 8px; padding: 8px; margin-bottom: 6px; }
-    .sl-param-row input, .sl-param-row select { font-size: 12px; padding: 5px 7px; width: 100%; }
-    .sl-param-row label { font-size: 11px; white-space: nowrap; }
     .sl-hint { font-size: 12px; color: #64748b; margin-bottom: 10px; line-height: 1.6; }
     .sl-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-    @media (max-width: 900px) { .sl-form-grid { grid-template-columns: 1fr; } .sl-param-row { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 900px) { .sl-form-grid { grid-template-columns: 1fr; } .sl-param-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .sl-param-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -60,6 +102,9 @@
 
   <script type="text/x-template" id="page-template">
     <div class="sl-root">
+      <div class="sl-back-row">
+        <button class="btn btn-default btn-sm sl-back" @click="goBack" title="返回上一页 / 工作台"><i class="fas fa-arrow-left"></i> 返回</button>
+      </div>
       <div class="sl-head">
         <div>
           <h1><i class="fas fa-code"></i> 脚本库</h1>
@@ -95,7 +140,7 @@
           <button class="btn btn-default btn-sm" @click="openUpload"><i class="fas fa-upload"></i> 上传 .sh</button>
         </div>
         <div v-else style="color:#b45309;margin-bottom:14px">仅管理员可在页面新增/编辑脚本，请联系管理员添加。</div>
-        <div style="font-size:12px">也可以把 .sh 直接放到上面的目录再点「重新扫描」；纯 .sh 没有参数表单，补一个同名 .json 即可定义参数。</div>
+        <div style="font-size:12px">也可以把 .sh 直接放到上面的目录再点「重新扫描」；纯 .sh 没有参数表单，在卡片上点「编辑」即可补参数定义。</div>
       </div>
       <div v-else class="sl-grid">
         <div class="sl-card" v-for="s in filtered" :key="s.id">
@@ -116,6 +161,7 @@
           <div class="sl-card-foot">
             <button class="btn btn-primary btn-sm" @click="deploy(s)"><i class="fas fa-play"></i> 去部署</button>
             <button class="btn btn-default btn-sm" @click="preview(s)"><i class="fas fa-eye"></i> 预览</button>
+            <button class="btn btn-default btn-sm" @click="exportScript(s)" title="导出为可独立运行的脚本，参数默认值写在顶部"><i class="fas fa-download"></i> 导出</button>
             <button class="btn btn-default btn-sm" v-if="isAdmin" @click="openEdit(s)"><i class="fas fa-pen"></i> 编辑</button>
             <button class="btn btn-default btn-sm" v-if="isAdmin" @click="removeScript(s)" title="删除"><i class="fas fa-trash"></i></button>
           </div>
@@ -123,74 +169,137 @@
       </div>
 
       <!-- 新建 / 编辑 -->
-      <div class="modal-overlay animated" :class="{ open: editorOpen }" @click.self="editorOpen = false">
+      <div class="modal-overlay animated" :class="{ open: editorOpen }" @click.self="closeEditor">
         <div class="modal sl-modal">
           <div class="modal-header">
             <h2>{{ editing ? '编辑脚本' : '新建脚本' }}</h2>
-            <button class="btn-close" @click="editorOpen = false">&times;</button>
+            <button class="btn-close" @click="closeEditor">&times;</button>
           </div>
           <div class="modal-body">
-            <div class="sl-form-grid">
-              <div class="sl-field">
-                <label>文件名（.sh）</label>
-                <input class="form-control" v-model="editor.filename" :disabled="editing" placeholder="install-tengine.sh">
+            <div class="sl-block">
+              <div class="sl-block-head">
+                <span class="sl-block-title"><i class="fas fa-circle-info"></i> 基础信息</span>
+                <span class="sl-block-desc">文件名和分类都可以改；改名会删除旧脚本，原分类空了会自动删掉</span>
               </div>
-              <div class="sl-field">
-                <label>分类目录（可选，一层）</label>
-                <input class="form-control" v-model="editor.category" :disabled="editing" placeholder="web">
-              </div>
-              <div class="sl-field">
-                <label>显示名称</label>
-                <input class="form-control" v-model="editor.name" placeholder="安装 Tengine">
-              </div>
-              <div class="sl-field">
-                <label>解释器</label>
-                <select class="form-control" v-model="editor.shell">
-                  <option value="sh">sh</option><option value="bash">bash</option>
-                  <option value="python3">python3</option><option value="python">python</option>
-                </select>
-              </div>
-              <div class="sl-field">
-                <label>单台超时（秒）</label>
-                <input class="form-control" type="number" min="1" max="3600" v-model.number="editor.timeout_sec">
-              </div>
-              <div class="sl-field">
-                <label>默认并发台数</label>
-                <input class="form-control" type="number" min="1" max="20" v-model.number="editor.concurrency">
-              </div>
-              <div class="sl-field sl-field-full">
-                <label>说明</label>
-                <input class="form-control" v-model="editor.description" placeholder="用途、前置条件、注意事项">
+              <div class="sl-form-grid">
+                <div class="sl-field">
+                  <label>文件名（.sh）</label>
+                  <input class="form-control" v-model="editor.filename" placeholder="install-tengine.sh">
+                  <span class="sl-field-help">字母、数字、下划线、短横线，以 .sh 结尾</span>
+                </div>
+                <div class="sl-field">
+                  <label>分类目录（可选，一层）</label>
+                  <input class="form-control" v-model="editor.category" placeholder="web">
+                  <span class="sl-field-help">留空即放在脚本库根目录</span>
+                </div>
+                <div class="sl-field">
+                  <label>显示名称</label>
+                  <input class="form-control" v-model="editor.name" placeholder="安装 Tengine">
+                </div>
+                <div class="sl-field">
+                  <label>解释器</label>
+                  <select class="form-control" v-model="editor.shell">
+                    <option value="sh">sh</option><option value="bash">bash</option>
+                    <option value="python3">python3</option><option value="python">python</option>
+                  </select>
+                </div>
+                <div class="sl-field">
+                  <label>单台超时（秒）</label>
+                  <input class="form-control" type="number" min="1" max="3600" v-model.number="editor.timeout_sec">
+                </div>
+                <div class="sl-field">
+                  <label>默认并发台数</label>
+                  <input class="form-control" type="number" min="1" max="20" v-model.number="editor.concurrency">
+                </div>
+                <div class="sl-field sl-field-full">
+                  <label>说明</label>
+                  <input class="form-control" v-model="editor.description" placeholder="用途、前置条件、注意事项">
+                </div>
               </div>
             </div>
 
-            <div class="sl-section-title">
-              <span>参数定义（脚本里用 <code v-pre>{{KEY}}</code> 引用；值不允许引号、换行、$、反引号等）</span>
-              <button class="btn btn-default btn-sm" @click="addParam"><i class="fas fa-plus"></i> 加一个参数</button>
-            </div>
-            <div v-if="!editor.params.length" class="sl-hint">没有参数也可以：脚本会原样执行。</div>
-            <div class="sl-param-row" v-for="(p, i) in editor.params" :key="i">
-              <input class="form-control" v-model="p.key" placeholder="KEY">
-              <input class="form-control" v-model="p.label" placeholder="显示名">
-              <select class="form-control" v-model="p.type">
-                <option value="text">文本</option><option value="number">数字</option><option value="select">下拉</option>
-              </select>
-              <input class="form-control" v-model="p.default" placeholder="默认值">
-              <input class="form-control" v-model="p.optionsText" placeholder="下拉选项,逗号分隔">
-              <input class="form-control" v-model="p.regex" placeholder="校验正则(可选)">
-              <label><input type="checkbox" v-model="p.required"> 必填</label>
-              <button class="btn btn-default btn-sm" @click="editor.params.splice(i, 1)" title="移除"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="sl-hint" v-if="editor.params.length">
-              下拉类型请把选项填在「下拉选项」里（逗号分隔）；数字范围校验可在同名 .json 中用 min / max 补充。
+            <div class="sl-block">
+              <div class="sl-block-head">
+                <span class="sl-block-title"><i class="fas fa-sliders"></i> 参数定义 <span class="sl-badge" v-if="editor.params.length">{{ editor.params.length }}</span></span>
+                <button class="btn btn-default btn-sm" @click="addParam"><i class="fas fa-plus"></i> 加一个参数</button>
+              </div>
+              <div class="sl-block-desc" style="margin-bottom:12px">
+                脚本正文里用 <code v-pre>{{KEY}}</code> 引用；参数值不允许引号、换行、$、反引号等特殊字符。不填参数时脚本原样执行。
+              </div>
+              <div v-if="!editor.params.length" class="sl-empty-inline">暂无参数，脚本会原样执行。需要传参时点右上「加一个参数」。</div>
+              <div class="sl-param-card" v-for="(p, i) in editor.params" :key="i">
+                <div class="sl-param-card-head">
+                  <span class="sl-param-index">参数 {{ i + 1 }}</span>
+                  <button class="btn btn-default btn-sm" @click="editor.params.splice(i, 1)" title="移除"><i class="fas fa-times"></i> 移除</button>
+                </div>
+                <div class="sl-param-grid">
+                  <div class="sl-field">
+                    <label>参数 KEY</label>
+                    <input class="form-control" v-model="p.key" placeholder="PORT">
+                  </div>
+                  <div class="sl-field">
+                    <label>显示名称</label>
+                    <input class="form-control" v-model="p.label" placeholder="监听端口">
+                  </div>
+                  <div class="sl-field">
+                    <label>类型</label>
+                    <select class="form-control" v-model="p.type">
+                      <option value="text">文本</option><option value="number">数字</option><option value="select">下拉</option>
+                    </select>
+                  </div>
+                  <div class="sl-field">
+                    <label>默认值</label>
+                    <input class="form-control" v-model="p.default" placeholder="8080">
+                  </div>
+                  <div class="sl-field">
+                    <label>下拉选项 <span class="sl-field-help">（逗号分隔）</span></label>
+                    <input class="form-control" v-model="p.optionsText" placeholder="80,443,8080" :disabled="p.type !== 'select'">
+                  </div>
+                  <div class="sl-field">
+                    <label>校验正则（可选）</label>
+                    <input class="form-control" v-model="p.regex" placeholder="^[0-9]+$">
+                  </div>
+                  <div class="sl-field">
+                    <label>数字范围（可选）</label>
+                    <div class="sl-range">
+                      <input class="form-control" type="number" v-model="p.min" placeholder="min">
+                      <input class="form-control" type="number" v-model="p.max" placeholder="max">
+                    </div>
+                  </div>
+                  <div class="sl-field">
+                    <label>约束</label>
+                    <label class="sl-param-check"><input type="checkbox" v-model="p.required"> 部署时必填</label>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div class="sl-section-title">脚本正文（用 <code v-pre>{{KEY}}</code> 引用上面的参数）</div>
-            <textarea class="form-control" rows="14" v-model="editor.content" style="font-family:monospace;font-size:12.5px" placeholder="#!/usr/bin/env bash&#10;set -euo pipefail&#10;# 先探测已装版本，保证脚本可重复执行"></textarea>
-            <div class="sl-hint" style="margin-top:8px">{{ editor.content.length }} 字符 · 保存时自动转为 LF 并去掉 BOM</div>
-
-            <div class="sl-foot">
-              <button class="btn btn-default" @click="editorOpen = false">取消</button>
+            <div class="sl-block">
+              <div class="sl-block-head">
+                <span class="sl-block-title"><i class="fas fa-file-code"></i> 脚本正文</span>
+                <span class="sl-block-desc">服务端渲染参数后下发</span>
+              </div>
+              <div class="sl-hint" style="margin:-2px 0 10px">
+                参数<b>不是 shell 变量、也不是位置参数</b>：脚本里要写 <code v-pre>{{KEY}}</code>（不是 <code v-pre>${KEY}</code> 或 <code>$1</code>），服务端会把它替换成填写的值再下发。想按变量用，先写 <code v-pre>VAR="{{KEY}}"</code>，后面用 <code>$VAR</code>；正文里每个占位符都要在上面的参数定义里存在，否则部署时报「未定义的占位符」。
+              </div>
+              <div v-if="placeholders.length" class="sl-ph-row">
+                <span>点参数插入到正文光标处：</span>
+                <button type="button" class="sl-ph" v-for="ph in placeholders" :key="ph.key" @mousedown.prevent="rememberCaret" @click="insertPlaceholder(ph.key)">{{ ph.text }}</button>
+              </div>
+              <textarea ref="editorTextarea" class="form-control sl-editor" rows="14" v-model="editor.content"
+                        @blur="rememberCaret" @select="rememberCaret" @keyup="rememberCaret"
+                        @click="rememberCaret" @input="onEditorInput"
+                        placeholder="#!/usr/bin/env bash&#10;set -euo pipefail&#10;# 先探测已装版本，保证脚本可重复执行&#10;echo ready"></textarea>
+              <div class="sl-editor-bar">
+                <span>请写成幂等 / 可重入，执行中断不会回滚</span>
+                <span>{{ editor.content.length }} 字符 · 保存时自动转为 LF 并去掉 BOM</span>
+              </div>
+            </div>
+          </div>
+          <div class="sl-modal-footer">
+            <span class="sl-save-tip" :style="editorDirty ? 'color:#b45309' : ''">{{ editorDirty ? '有未保存的修改' : '保存到服务端脚本目录，保存后立即出现在列表里' }}</span>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-default" @click="closeEditor">取消</button>
               <button class="btn btn-primary" @click="save" :disabled="saving">{{ saving ? '保存中…' : '保存' }}</button>
             </div>
           </div>
@@ -198,11 +307,11 @@
       </div>
 
       <!-- 上传 -->
-      <div class="modal-overlay animated" :class="{ open: uploadOpen }" @click.self="uploadOpen = false">
+      <div class="modal-overlay animated" :class="{ open: uploadOpen }" @click.self="closeUpload">
         <div class="modal" style="width:min(520px,94vw)">
-          <div class="modal-header"><h2>上传 .sh 脚本</h2><button class="btn-close" @click="uploadOpen = false">&times;</button></div>
+          <div class="modal-header"><h2>上传 .sh 脚本</h2><button class="btn-close" @click="closeUpload">&times;</button></div>
           <div class="modal-body">
-            <div class="sl-hint">上传后脚本会出现在库里（无参数表单）。需要参数时，在服务器上补一个同名 .json，或用「编辑」补参数定义。</div>
+            <div class="sl-hint">上传后脚本会立即出现在库里。需要参数时，在列表里点「编辑」即可补参数定义，不用去服务器改文件。</div>
             <div class="sl-field" style="margin-bottom:12px">
               <label>分类目录（可选）</label>
               <input class="form-control" v-model="uploadCategory" placeholder="web">
@@ -212,7 +321,7 @@
               <input type="file" accept=".sh" class="form-control" @change="onFileChange">
             </div>
             <div class="sl-foot">
-              <button class="btn btn-default" @click="uploadOpen = false">取消</button>
+              <button class="btn btn-default" @click="closeUpload">取消</button>
               <button class="btn btn-primary" @click="upload" :disabled="uploading">{{ uploading ? '上传中…' : '上传' }}</button>
             </div>
           </div>
@@ -233,6 +342,6 @@
   </script>
 
   <script src="/assets/js/core.js?v=20261112a"></script>
-  <script src="/assets/js/pages/scripts.js?v=20261112a"></script>
+  <script src="/assets/js/pages/scripts.js?v=20261112h"></script>
 </body>
 </html>
