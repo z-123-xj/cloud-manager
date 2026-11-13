@@ -1,0 +1,57 @@
+{
+  "name": "安装 Tengine",
+  "category": "ubuntu24",
+  "description": "编译安装 Tengine（Nginx 发行版），配置 systemd、默认站点自签证书、日志切割；可选安装 certbot。可重复执行。注意：源文件名是 3.3.0，但实际内容为 3.1.0，默认按可下载版本 3.1.0 安装，可自行改成其它版本号。",
+  "shell": "bash",
+  "timeout_sec": 1800,
+  "concurrency": 3,
+  "params": [
+    {
+      "key": "TENGINE_VERSION",
+      "label": "Tengine 版本",
+      "type": "text",
+      "default": "3.1.0",
+      "required": true,
+      "options": null,
+      "regex": "^[0-9]+(\\.[0-9]+)*$",
+      "min": null,
+      "max": null
+    },
+    {
+      "key": "NGINX_DIR",
+      "label": "nginx 软链目录",
+      "type": "text",
+      "default": "/usr/local/nginx",
+      "required": true,
+      "options": null,
+      "regex": "^/[A-Za-z0-9_/-]+$",
+      "min": null,
+      "max": null
+    },
+    {
+      "key": "WWW_USER",
+      "label": "nginx 运行用户",
+      "type": "text",
+      "default": "www",
+      "required": true,
+      "options": null,
+      "regex": "^[A-Za-z_][A-Za-z0-9_-]*$",
+      "min": null,
+      "max": null
+    },
+    {
+      "key": "INSTALL_CERTBOT",
+      "label": "是否安装 certbot 及证书到期监控",
+      "type": "select",
+      "default": "yes",
+      "required": true,
+      "options": [
+        "yes",
+        "no"
+      ],
+      "regex": "",
+      "min": null,
+      "max": null
+    }
+  ]
+}

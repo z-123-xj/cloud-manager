@@ -140,7 +140,7 @@ func RunBatchTask(c *gin.Context) {
 		return
 	}
 	if req.Shell == "" {
-		req.Shell = "sh"
+		req.Shell = "bash"
 	}
 	command, err := shellCommand(req.Shell)
 	if err != nil {

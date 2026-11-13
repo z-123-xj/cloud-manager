@@ -151,22 +151,42 @@ func metaJSONPath(shPath string) string {
 	return strings.TrimSuffix(shPath, filepath.Ext(shPath)) + ".json"
 }
 
+// 分类目录里只剩这些占位 / 临时 / 系统文件时，允许连同目录一起清掉
+var rePrunableLeftover = regexp.MustCompile(`^(\.gitkeep|\.keep|\.DS_Store|Thumbs\.db|\.tmp-script-.*)$`)
+
 // pruneEmptyCategory 脚本被改名/移走/删除后，清掉已经空了的那一层分类目录。
-// 只处理 root 下的一层子目录，且仅用 os.Remove 删空目录，不递归删文件。
-func pruneEmptyCategory(root, shPath string) {
+// 只处理 root 下的一层子目录，不递归删目录；有其它文件时保留目录并返回原因。
+func pruneEmptyCategory(root, shPath string) (bool, string) {
 	cleanRoot := filepath.Clean(root)
 	dir := filepath.Clean(filepath.Dir(shPath))
 	if dir == cleanRoot || filepath.Dir(dir) != cleanRoot {
-		return
+		return false, ""
 	}
 	if !reSafeName.MatchString(filepath.Base(dir)) {
-		return
+		return false, ""
 	}
 	entries, err := os.ReadDir(dir)
-	if err != nil || len(entries) > 0 {
-		return
+	if err != nil {
+		return false, "无法读取分类目录: " + err.Error()
 	}
-	_ = os.Remove(dir)
+	var kept []string
+	for _, e := range entries {
+		if e.IsDir() || !rePrunableLeftover.MatchString(e.Name()) {
+			kept = append(kept, e.Name())
+		}
+	}
+	if len(kept) > 0 {
+		return false, "分类目录里还有其它文件: " + strings.Join(kept, ", ")
+	}
+	for _, e := range entries {
+		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+			return false, "清理占位文件失败: " + err.Error()
+		}
+	}
+	if err := os.Remove(dir); err != nil {
+		return false, "删除分类目录失败: " + err.Error()
+	}
+	return true, ""
 }
 
 // readMeta 读同名 .json；没有时用文件名/子目录名和默认值兜底，
@@ -178,7 +198,7 @@ func readMeta(root, shPath string) scriptMeta {
 		category = filepath.Base(dir)
 	}
 	m := scriptMeta{
-		Name: name, Category: category, Shell: "sh",
+		Name: name, Category: category, Shell: "bash",
 		TimeoutSec: 300, Concurrency: 5, Params: []scriptParam{},
 	}
 	if b, err := os.ReadFile(metaJSONPath(shPath)); err == nil {
@@ -413,7 +433,31 @@ func writeAtomic(path string, data []byte, mode os.FileMode) error {
 	return os.Rename(name, path)
 }
 
-// ListScripts GET /api/bastion/scripts —— 自动发现目录里的脚本
+// scanCategoryDirs 列出脚本库根目录下一层的合法分类目录，
+// 包含还没有任何 .sh 的空目录，供页面新建/上传脚本时直接选择。
+func scanCategoryDirs(root string) ([]string, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{}, nil
+		}
+		return nil, err
+	}
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		if e.Type()&os.ModeSymlink != 0 || !reSafeName.MatchString(e.Name()) {
+			continue
+		}
+		out = append(out, e.Name())
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// ListScripts GET /api/bastion/scripts —— 自动发现目录里的脚本与分类目录
 func ListScripts(c *gin.Context) {
 	root, err := scriptRoot()
 	if err != nil {
@@ -425,7 +469,12 @@ func ListScripts(c *gin.Context) {
 		batchFail(c, "扫描脚本目录失败: %v", err)
 		return
 	}
-	batchOK(c, gin.H{"dir": root, "items": infos, "max_bytes": maxScriptFileBytes})
+	cats, err := scanCategoryDirs(root)
+	if err != nil {
+		batchFail(c, "扫描分类目录失败: %v", err)
+		return
+	}
+	batchOK(c, gin.H{"dir": root, "items": infos, "categories": cats, "max_bytes": maxScriptFileBytes})
 }
 
 // GetScript GET /api/bastion/scripts/detail?id=xxx —— 返回正文与元数据
@@ -536,7 +585,7 @@ func SaveScript(c *gin.Context) {
 		TimeoutSec: req.TimeoutSec, Concurrency: req.Concurrency, Params: req.Params,
 	}
 	if meta.Shell == "" {
-		meta.Shell = "sh"
+		meta.Shell = "bash"
 	}
 	if _, err := shellCommand(meta.Shell); err != nil {
 		batchFail(c, "%s", err.Error())
@@ -560,7 +609,9 @@ func SaveScript(c *gin.Context) {
 			warn = fmt.Sprintf("新脚本已保存，但旧文件清理失败: %v", err)
 		}
 		_ = os.Remove(metaJSONPath(oldFull)) // 同名 .json，不存在时忽略
-		pruneEmptyCategory(root, oldFull)
+		if _, reason := pruneEmptyCategory(root, oldFull); reason != "" && warn == "" {
+			warn = reason
+		}
 	}
 	data := gin.H{"id": req.ID, "renamed": renamed}
 	if warn != "" {
@@ -631,7 +682,11 @@ func DeleteScript(c *gin.Context) {
 		batchFail(c, "删除脚本失败: %v", err)
 		return
 	}
-	os.Remove(metaJSONPath(full)) // 元数据一并清理，不存在时忽略
-	pruneEmptyCategory(root, full)
-	batchOK(c, gin.H{"id": c.Query("id")})
+	_ = os.Remove(metaJSONPath(full)) // 元数据一并清理，不存在时忽略
+	pruned, reason := pruneEmptyCategory(root, full)
+	res := gin.H{"id": c.Query("id"), "pruned": pruned}
+	if reason != "" {
+		res["prune_warn"] = reason
+	}
+	batchOK(c, res)
 }

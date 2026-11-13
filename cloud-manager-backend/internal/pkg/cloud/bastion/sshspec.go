@@ -180,7 +180,7 @@ var shellCommands = map[string]string{
 
 func shellCommand(shell string) (string, error) {
 	if shell == "" {
-		shell = "sh"
+		shell = "bash"
 	}
 	cmd, ok := shellCommands[shell]
 	if !ok {
@@ -190,7 +190,7 @@ func shellCommand(shell string) (string, error) {
 }
 
 func supportedShells() []string {
-	return []string{"sh", "bash", "python3", "python"}
+	return []string{"bash", "sh", "python3", "python"}
 }
 
 // runRemoteCtx 在远端执行一段脚本，支持超时与任务取消。

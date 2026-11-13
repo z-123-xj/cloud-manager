@@ -30,12 +30,12 @@
       const hostsOpen = ref(true);
       const credentials = ref([]);
       const options = ref({
-        shells: ['sh'], networks: ['public'],
+        shells: ['bash'], networks: ['public'],
         max_concurrency: 20, max_timeout_sec: 3600,
         max_script_bytes: 32768, max_output_bytes: 16384, max_assets: 200,
       });
       const form = reactive({
-        title: '', script: '', shell: 'sh', network: 'public',
+        title: '', script: '', shell: 'bash', network: 'public',
         credential_id: 0, concurrency: 5, timeout_sec: 300,
       });
 
@@ -156,7 +156,7 @@
         const data = await api('/api/bastion/batch/options');
         if (!data) return;
         options.value = data;
-        if (!options.value.shells || !options.value.shells.length) options.value.shells = ['sh'];
+        if (!options.value.shells || !options.value.shells.length) options.value.shells = ['bash'];
         if (Number(form.concurrency) > Number(options.value.max_concurrency)) form.concurrency = options.value.max_concurrency;
       }
 
@@ -317,7 +317,7 @@
         scriptPreview.value = '';
         form.title = '重跑 #' + t.id + ' 失败主机';
         form.script = task.script || '';
-        form.shell = task.shell || 'sh';
+        form.shell = task.shell || 'bash';
         form.network = task.network || 'public';
         form.concurrency = task.concurrency || 5;
         form.timeout_sec = task.timeout_sec || 300;
@@ -461,7 +461,7 @@
         scriptPreview.value = '';
         form.title = task.title || '';
         form.script = task.script || '';
-        form.shell = (options.value.shells || []).indexOf(task.shell) >= 0 ? task.shell : 'sh';
+        form.shell = (options.value.shells || []).indexOf(task.shell) >= 0 ? task.shell : 'bash';
         form.network = ['public', 'eip', 'private'].indexOf(task.network) >= 0 ? task.network : 'public';
         form.credential_id = credentialId;
         form.concurrency = clampNum(task.concurrency, 1, Number(options.value.max_concurrency) || 20, 5);

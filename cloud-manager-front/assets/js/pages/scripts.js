@@ -32,14 +32,18 @@
 
       const editor = reactive({
         id: '', filename: '', category: '', name: '', description: '',
-        shell: 'sh', timeout_sec: 300, concurrency: 5, content: '', params: [],
+        shell: 'bash', timeout_sec: 300, concurrency: 5, content: '', params: [],
       });
 
+      const dirCategories = ref([]); // 脚本库里实际存在的分类目录（含还没有脚本的空目录）
       const categories = computed(() =>
         Array.from(new Set(items.value.map(s => s.category))).sort());
-      // 编辑弹窗里可选的已有分类（根目录脚本显示为「未分类」，不作为可选目录）
+      // 新建/上传时可选：目录里已有的（含空目录） + 已有脚本用到的分类
       const categoryOptions = computed(() =>
-        categories.value.filter(c => c && c !== '未分类'));
+        Array.from(new Set([
+          ...dirCategories.value,
+          ...categories.value.filter(c => c && c !== '未分类'),
+        ])).sort());
       const catComboOpen = ref(false);
       const catComboEl = ref(null);
       const uploadCatOpen = ref(false);
@@ -109,6 +113,7 @@
         if (!d) return;
         dir.value = d.dir || '';
         items.value = (d.items || []).map(s => ({ ...s, params: s.params || [] }));
+        dirCategories.value = Array.isArray(d.categories) ? d.categories : [];
       }
       // 拖动右下角把手拉高正文框时，弹窗到达高度上限后不再变高，
       // 内容区是独立滚动容器，新露出的底部与下方提示条会被挤出视野，
@@ -259,7 +264,7 @@
 
       function resetEditor() {
         editor.id = ''; editor.filename = ''; editor.category = '';
-        editor.name = ''; editor.description = ''; editor.shell = 'sh';
+        editor.name = ''; editor.description = ''; editor.shell = 'bash';
         editor.timeout_sec = 300; editor.concurrency = 5;
         editor.content = ''; editor.params = [];
       }
@@ -282,7 +287,7 @@
         editor.category = parts.join('/');
         editor.name = d.name || '';
         editor.description = d.description || '';
-        editor.shell = d.shell || 'sh';
+        editor.shell = d.shell || 'bash';
         editor.timeout_sec = d.timeout_sec || 300;
         editor.concurrency = d.concurrency || 5;
         editor.content = d.content || '';
@@ -388,7 +393,11 @@
         if (!window.confirm('确定删除脚本 ' + s.id + ' 吗？同名 .json 元数据也会一并删除。')) return;
         const d = await api('/api/bastion/scripts?id=' + encodeURIComponent(s.id), { method: 'DELETE' });
         if (!d) return;
-        showToast('已删除', 'success');
+        if (d.prune_warn) {
+          showToast('脚本已删除，但分类目录未清理：' + d.prune_warn, 'error');
+        } else {
+          showToast(d.pruned ? '已删除脚本，空的分类目录也已清理' : '已删除', 'success');
+        }
         load();
       }
 

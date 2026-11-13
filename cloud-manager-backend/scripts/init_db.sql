@@ -338,7 +338,7 @@ CREATE TABLE IF NOT EXISTS `batch_tasks` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     `title` VARCHAR(200) NOT NULL DEFAULT '' COMMENT '任务标题',
     `script` MEDIUMTEXT NOT NULL COMMENT '执行的命令或脚本内容（审计留痕）',
-    `shell` VARCHAR(20) NOT NULL DEFAULT 'sh' COMMENT '解释器 sh/bash/python3',
+    `shell` VARCHAR(20) NOT NULL DEFAULT 'bash' COMMENT '解释器 bash/sh/python3/python',
     `network` VARCHAR(20) NOT NULL DEFAULT 'public' COMMENT '连接网络 public/eip/private',
     `credential_id` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '使用的SSH凭证ID',
     `credential_name` VARCHAR(100) NOT NULL DEFAULT '' COMMENT '凭证名称快照',

@@ -1,55 +1,53 @@
 #!/bin/bash
+# 安装 Docker CE（阿里云镜像源），云管平台脚本库下发，经 stdin 交给 bash -s
+# 脚本会直接执行安装，不再依赖 BASH_SOURCE[0] == $0 之类的守卫（stdin 方式不可靠）。
+set -o pipefail
+
+DOCKER_DATA="{{docker_data}}"
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "请用 root 凭证执行本脚本"
+    exit 1
+fi
 
 check_ok() {
-    if [ $? != 0 ]
-    then
-        echo "Error, Check the error log."
+    if [ $? -ne 0 ]; then
+        echo "Error: $1"
         exit 1
     fi
 }
 
-function install_docker(){
-    # 更新软件源并安装依赖
-    sudo apt-get update
-    sudo apt-get install ca-certificates -y
+export DEBIAN_FRONTEND=noninteractive
 
-    # 国内用阿里镜像
-    sudo install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    sudo chmod a+r /etc/apt/keyrings/docker.gpg
+# 更新软件源并安装依赖（curl / gnupg 后面导入 GPG 公钥时必须存在）
+apt-get update
+check_ok 'apt-get update'
+apt-get install -y ca-certificates curl gnupg
+check_ok 'apt-get install ca-certificates curl gnupg'
 
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://mirrors.aliyun.com/docker-ce/linux/ubuntu \
-      $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-      sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+# 国内用阿里云 Docker CE 镜像源
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+check_ok '导入 Docker GPG 公钥'
+chmod a+r /etc/apt/keyrings/docker.gpg
 
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://mirrors.aliyun.com/docker-ce/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  tee /etc/apt/sources.list.d/docker.list > /dev/null
+check_ok '写入 Docker APT 源'
 
-    # # 添加 Docker 官方 GPG 密钥
-    # sudo install -m 0755 -d /etc/apt/keyrings
-    # sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-    # sudo chmod a+r /etc/apt/keyrings/docker.asc
+apt-get update
+check_ok 'apt-get update（docker 源）'
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+check_ok 'apt-get install docker-ce'
 
-    # # 添加 Docker APT 源
-    # sudo tee /etc/apt/sources.list.d/docker.list << EOF
-    # deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable
-    # EOF
-
-    # 再次更新软件源
-    sudo apt-get update
-
-    # 安装 Docker 引擎
-    sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
-
-
-    # 后续优化配置
-    # 免 sudo 运行 docker 命令
-    # 默认情况下，每次运行 docker 命令都需要加 sudo。如果你的服务器是个人使用或内部开发环境，可以将自己的用户加入 docker 用户组来免去这个麻烦。
-    # sudo usermod -aG docker $USER
-    # 注意：执行完这条命令后，你需要退出当前终端会话并重新登录，权限才会生效 。
-
-    cat > /etc/docker/daemon.json <<EOF
+# daemon.json 写之前确保目录存在；data-root 目录也一并建好
+mkdir -p /etc/docker "${DOCKER_DATA}"
+check_ok "mkdir -p ${DOCKER_DATA}"
+cat > /etc/docker/daemon.json <<EOF
 {
-  "data-root": "{{docker_data}}",
+  "data-root": "${DOCKER_DATA}",
   "log-driver": "local",
   "log-opts": {
     "max-size": "20m",
@@ -57,7 +55,12 @@ function install_docker(){
   }
 }
 EOF
+check_ok '写 /etc/docker/daemon.json'
 
-    sudo systemctl daemon-reload
-    sudo systemctl restart docker
-}
+systemctl daemon-reload
+systemctl enable --now docker
+check_ok 'systemctl enable docker'
+systemctl is-active --quiet docker || { echo 'Error: docker 服务未正常运行'; exit 1; }
+
+docker --version
+echo "==> Docker 安装完成，data-root=${DOCKER_DATA}"
